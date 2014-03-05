@@ -1,0 +1,446 @@
+a:link, a:active, a:visited {
+    color: #754;
+    text-decoration: none;
+}
+
+a:link:hover, a:visited:hover {
+    color: #754;
+    text-decoration: underline;
+}
+
+applet {
+    margin: 10px 0px 10px 0px;
+    border: 1px solid #000;
+}
+
+blockquote {
+    margin: 10px 0px 10px 0px;
+    padding: 0px 10px 0px 10px;
+}
+
+body {
+    margin: 0px;
+    padding: 0px;
+    color: #000;
+    background-color: #fff;
+    font: 12px "verdana", "tahoma", "arial", sans-serif;
+}
+
+cite {
+    font-style: normal;
+    font-size: 10px;
+}
+
+dfn {
+    font-style: normal;
+    font-weight: bold;
+}
+
+dd {
+    margin: 5px 0px 10px 0px;
+    padding: 0px 0px 0px 60px;
+}
+
+dl {
+    margin: 10px 0px 0px 10px;
+    padding: 0px;
+}
+
+dt {
+    margin: 0px 0px 5px 0px;
+    padding: 0px;
+    white-space: nowrap;
+    font-weight: bold;
+}
+
+form table td {
+    padding: 0px;
+    text-align: left;
+    vertical-align: top;
+}
+
+form table th {
+    padding: 3px 10px 2px 0px;
+    text-align: right;
+    vertical-align: top;
+}
+
+fieldset {
+    margin: 20px 0px 10px;
+    padding: 10px;
+}
+
+fieldset legend {
+    font-weight: bold;
+}
+
+h1 {
+    clear: both;
+    margin: 10px 0px 10px 0px;
+    font-size: 20px;
+}
+
+h2 {
+    clear: both;
+    margin: 10px 0px 10px 0px;
+    font-size: 18px;
+}
+
+h3 {
+    clear: both;
+    margin: 10px 0px 10px 0px;
+    font-size: 16px;
+}
+
+h4 {
+    clear: both;
+    margin: 10px 0px 10px 0px;
+    font-size: 14px;
+}
+
+iframe {
+    border: none;
+}
+
+img {
+    border: none;
+}
+
+li {
+    margin: 0px 0px 10px 0px;
+    padding: 0px;
+}
+
+ol, ul {
+    margin: 10px 0px 10px 40px;
+    padding: 0px;
+}
+
+p {
+    margin: 10px 0px;
+}
+
+pre {
+    margin: 10px 0px;
+    padding: 0px 10px;
+}
+
+small {
+    font-size: 10px;
+}
+
+td, th {
+    font-size: 12px;
+}
+
+
+
+#body {
+    width: 100%;
+}
+
+#content {
+    padding: 0px 10px 0px 10px;
+    vertical-align: top;
+}
+
+#content img {
+    margin: 10px 10px 10px 10px;
+}
+
+#foot {
+    padding: 4px 10px;
+    border-top: 1px solid #cb9;
+    border-bottom: 1px solid #cb9;
+    font-size: 10px;
+    background-color: #edb;
+    text-align: right;
+}
+
+#head {
+    width: 100%;
+    height: 130px;
+    background-color: #edb;
+    border-bottom: 1px solid #cb9;
+}
+
+#logo {
+    width: 130px;
+    height: 130px;
+    padding: 0px;
+}
+
+#menu {
+    padding: 0px;
+    width: 140px;
+    background-color: #edb;
+    border-right: 1px solid #dca;
+    vertical-align: top;
+}
+
+#menu a {
+    display: block;
+    width: 136px;
+    padding: 2px;
+    margin: 2px 0px;
+    background-color: #edb;
+    border-top: 1px solid #fec;
+    border-bottom: 1px solid #dca;
+    font-size: 11px;
+    font-weight: bold;
+    text-align: center;
+}
+
+#menu a:hover {
+    background-color: #dca;
+    color: #754;
+    text-decoration: none;
+}
+
+#menu a.pressed, #menu a.pressed:hover {
+    border-color: #dca;
+    color: #000;
+    background-color: #dca;
+    text-decoration: none;
+}
+
+#menu a.plain, #menu a.plain:hover {
+    background-color: #edb;
+    border: none;
+}
+
+#menu div.separator {
+    width: 136px;
+    height: 10px;
+    visibility: hidden;
+}
+
+#menu hr {
+    display: block;
+    width: 140px;
+    height: 1px;
+    margin: 0px;
+    padding: 0px;
+    color: #cb9;
+}
+
+#path {
+    padding: 4px 10px;
+    border-bottom: 1px solid #cb9;
+    font-size: 12px;
+    background-color: #edb;
+}
+
+#path h1 {
+    display: inline;
+    margin: 0px;
+    font-size: 12px;
+}
+
+#votes {
+    margin: 10px 0px 10px 10px;
+    padding: 0px;
+    float: right;
+    font-size: 10px;
+}
+
+#votes img {
+    margin: 0px;
+    padding: 0px;
+    vertical-align: text-bottom;
+}
+
+#title-line-1, #title-line-2 {
+    margin: 10px 10px 10px 20px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+#title-line-3 {
+    margin: 10px 10px 10px 20px;
+    font-size: 20px;
+    white-space: nowrap;
+}
+
+
+
+
+.block {
+    margin: 10px 0px 10px 0px;
+    padding: 0px 10px 0px 10px;
+    border: 1px solid #edb;
+    background-color: #fec;
+}
+
+.block-head {
+    margin: 0px -10px 10px -10px;
+    padding: 4px 10px 4px 10px;
+    border-bottom: 1px dashed #edb;
+}
+
+.book-cover {
+    padding-right: 10px;
+    vertical-align: top;
+    text-align: center;
+}
+
+.book-cover img {
+    margin: 0px 0px 5px 0px;
+    padding: 0px;
+    border: 1px solid #000;
+}
+
+.book-cover p {
+    margin: 5px 0px 0px 0px;
+    padding: 0px;
+}
+
+.book-info {
+    vertical-align: top;
+}
+
+.book-info h2 {
+    font-size: 14px;
+}
+
+.book-id {
+    font-weight: bold;
+}
+
+.bordered {
+    border: 1px solid #000;
+}
+
+.button {
+    padding: 1px 5px;
+    border-width: 1px;
+    border-style: solid;
+    border-color: #fec #dca #dca #fec;
+    color: #754;
+    background-color: #edb;
+    font-size: 10px;
+    font-weight: normal;
+}
+
+.float {
+    float: right;
+    margin: 10px 0px 10px 10px;
+    border: 1px solid #edb;
+    padding: 10px;
+    background-color: #fec;
+}
+
+.formula {
+    margin: 10px 0px 10px 0px;
+    line-height: 24px;
+    text-align: center;
+}
+
+.hidden, a:link.hidden, a:visited.hidden {
+    color: #aaa;
+}
+
+.hidden:hover {
+    color: #888;
+}
+
+.list {
+    margin: 10px 0px 10px 0px;
+}
+
+.list td, .list th {
+    padding: 3px 5px;
+    vertical-align: top;
+}
+
+.padded {
+    padding: 10px 10px 0px 10px;
+}
+
+.red {
+    font-style: normal;
+    color: #c00;
+}
+
+.signature {
+    margin: 15px 0px 10px 0px;
+    text-align: left;
+    font-style: italic;
+}
+
+.text {
+    border-width: 1px;
+    border-style: solid;
+    border-color: #dca #fec #fec #dca;
+    background-color: #edb;
+    font-family: "verdana", "tahoma", "arial", sans-serif;
+    font-size: 12px;
+}
+
+
+
+/** backported from CAT v2 */
+
+table.niceTable {
+    margin: 10px 0px;
+    border: 1px solid #cb9;
+}
+
+table.niceTable tr.even {
+    background-color: #f8e7c5;
+}
+
+table.niceTable tr.odd {
+    background-color: #ffeecc;
+}
+
+table.niceTable th {
+    padding: 5px 10px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+table.niceTable td {
+    padding: 5px 10px;
+    text-align: left;
+}
+
+table.niceTable td.centered {
+    text-align: center;
+}
+
+
+/** another nice thing */
+
+div.gallery {
+    padding: 10px 0px 0px 10px;
+}
+
+table.thumb {
+    float: left;
+    margin: 0px 10px 10px 0px;
+    width: 150px;
+    height: 180px;
+    padding: 0px;
+}
+
+table.thumb td.image {
+    width: 150px;
+    height: 150px;
+    padding: 0px;
+    vertical-align: middle;
+    text-align: center;
+}
+
+table.thumb td.image img {
+    border: 1px solid #cb9;
+}
+
+table.thumb td.caption {
+    width: 150px;
+    height: 30px;
+    padding: 0px;
+    vertical-align: middle;
+    text-align: center;
+    font: 10px "Verdana", "Arial", "Helvetica", sans-serif;
+}
