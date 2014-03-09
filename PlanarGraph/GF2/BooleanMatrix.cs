@@ -7,9 +7,11 @@ namespace PlanarGraph.GF2
 {
     public class BooleanMatrix : StackListQueue<BooleanVector>
     {
-        public BooleanMatrix(IEnumerable<BooleanVector> list)
+
+        public BooleanMatrix(IEnumerable<IEnumerable<bool>> list)
         {
-            AddRange(list);
+            foreach(var item in list)
+                Add(new BooleanVector(item));
         }
 
         public int Length

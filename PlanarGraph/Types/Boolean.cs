@@ -16,5 +16,10 @@
         {
             return b ^ b1;
         }
+
+        public static int Xor(int arg1, int arg2)
+        {
+            return arg1 ^ arg2;
+        }
     }
 }

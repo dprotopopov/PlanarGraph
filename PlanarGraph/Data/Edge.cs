@@ -1,25 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using PlanarGraph.Collections;
+using PlanarGraph.Comparer;
 
 namespace PlanarGraph.Data
 {
     /// <summary>
     ///     Класс грани графа
     ///     Грань описывается списком вершин, принадлежащим этой грани
-    ///     Грань — это часть плоскости, окруженная простым циклом и не содержащая внутри себя других элементов графа.
+    ///     Грань — это часть плоскости.
     /// </summary>
-    public class Edge : Circle
+    public class Edge : VertexUnsortedCollection, IElement
     {
-        public Edge(IEnumerable<Vertex> list)
+        private static readonly VertexComparer VertexComparer = new VertexComparer();
+
+        public Edge(IEnumerable<Vertex> list) : base(list)
         {
-            AddRange(list);
         }
 
-        public Edge(Circle circle)
+        public Edge(Vertex vertex) : base(vertex)
         {
-            AddRange(circle);
         }
 
         /// <summary>
@@ -28,8 +29,9 @@ namespace PlanarGraph.Data
         /// <returns></returns>
         public IEnumerable<Edge> Split(Path path)
         {
-            Debug.Assert(path.Belongs(this));
+            Debug.Assert(path.FromTo(this));
             var list = new List<Edge>();
+            if (path.Count() < 2) return list;
             int index1 = IndexOf(path.First());
             int index2 = IndexOf(path.Last());
             List<Vertex> vertexs = path.ToList();
@@ -37,44 +39,110 @@ namespace PlanarGraph.Data
             {
                 // Вырожденый случай когда путь представляет собой цикл                
                 // и пересечение с грань происходит только в одной точке                
-                list.Add(new Edge(path.GetRange(0, path.Count - 1)));
-                List<Vertex> range = GetRange(0, index1);
-                range.AddRange(vertexs.GetRange(0, vertexs.Count - 1));
-                range.AddRange(GetRange(index2, this.Count() - index2));
-                list.Add(new Edge(range));
-                return list;
+                if (path.Count > 3) list.Add(new Edge(path.GetRange(0, path.Count - 1)));
+                list.Add(this);
             }
-            if (index1 > index2)
+            else
             {
-                int t = index1;
-                index1 = index2;
-                index2 = t;
+                if (index1 > index2)
+                {
+                    int t = index1;
+                    index1 = index2;
+                    index2 = t;
+                    vertexs.Reverse();
+                }
+                List<Vertex> list1 = GetRange(0, index1);
+                list1.AddRange(vertexs.GetRange(0, vertexs.Count - 1));
+                list1.AddRange(GetRange(index2, this.Count() - index2));
+                list.Add(new Edge(list1));
                 vertexs.Reverse();
+                List<Vertex> list2 = GetRange(index1, index2 - index1);
+                list2.AddRange(vertexs.GetRange(0, path.Count() - 1));
+                list.Add(new Edge(list2));
             }
-            List<Vertex> list1 = GetRange(0, index1);
-            list1.AddRange(vertexs.GetRange(0, vertexs.Count - 1));
-            list1.AddRange(GetRange(index2, this.Count() - index2));
-            list.Add(new Edge(list1));
-            vertexs.Reverse();
-            List<Vertex> list2 = GetRange(index1, index2 - index1);
-            list2.AddRange(vertexs.GetRange(0, path.Count() - 1));
-            list.Add(new Edge(list2));
+            Debug.WriteLineIf(list.Any(), this + " split by " + path + " is " +
+                                          string.Join(",", list.Select(item => item.ToString())));
             return list;
-        }
-
-        public override bool Equals(object obj)
-        {
-            return base.Equals(obj);
-        }
-
-        public override int GetHashCode()
-        {
-            return base.GetHashCode();
         }
 
         public override string ToString()
         {
             return string.Format("[{0}]", base.ToString());
+        }
+
+        public override bool Equals(object obj)
+        {
+            var edge = obj as Edge;
+            if (obj == null) return false;
+            if (Count != edge.Count()) return false;
+            if (Count == 0) return true;
+            
+            var list1 = new SortedStackListQueue<Vertex>(this) {Comparer = VertexComparer};
+            var list2 = new SortedStackListQueue<Vertex>(edge) {Comparer = VertexComparer};
+            if (!list1.Equals(list2)) return false;
+
+            int index = edge.IndexOf(this[0]);
+            var edge1 = new Edge(edge);
+            edge1.Rotate(index);
+            if (this.SequenceEqual(edge1)) return true;
+            edge1.Rotate();
+            edge1.Reverse();
+            return this.SequenceEqual(edge1);
+        }
+
+        public override int GetHashCode()
+        {
+            return new Graph(this).GetHashCode();
+        }
+
+        public bool BelongsTo(Graph graph)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool BelongsTo(Circle circle)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool BelongsTo(Edge edge)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool BelongsTo(Path path)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool BelongsTo(Segment segment)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Graph graph)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Circle circle)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Edge edge)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Path path)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Segment segment)
+        {
+            throw new System.NotImplementedException();
         }
     }
 }

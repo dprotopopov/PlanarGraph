@@ -5,24 +5,27 @@ using PlanarGraph.Data;
 
 namespace PlanarGraph.Collections
 {
-    public class VertexEnum : Enum<Vertex>
+    public class VertexSortedCollection : SortedStackListQueue<Vertex>
     {
-        public VertexEnum(IEnumerable<Vertex> vertices)
+        private static readonly VertexComparer VertexComparer = new VertexComparer();
+
+        public VertexSortedCollection(IEnumerable<Vertex> vertices)
         {
-            Comparer = new VertexComparer();
+            Comparer = VertexComparer;
             AddRange(vertices.ToList());
         }
 
-        public VertexEnum()
+        public VertexSortedCollection()
         {
-            Comparer = new VertexComparer();
+            Comparer = VertexComparer;
         }
 
-        public VertexEnum(Vertex vertix)
+        public VertexSortedCollection(Vertex vertix)
+            : base(vertix)
         {
-            Comparer = new VertexComparer();
-            Add(vertix);
+            Comparer = VertexComparer;
         }
+
         public override bool Equals(object obj)
         {
             return base.Equals(obj);

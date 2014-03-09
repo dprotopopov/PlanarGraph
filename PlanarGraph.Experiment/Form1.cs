@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -98,17 +97,17 @@ namespace PlanarGraph.Experiment
                 }
         }
 
-        private async void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
+        private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (saveFileDialog1.ShowDialog() != DialogResult.OK) return;
             using (StreamWriter writer = File.CreateText(saveFileDialog1.FileName))
             {
                 PropertyInfo[] properties = typeof (Experiment).GetProperties();
-                await writer.WriteLineAsync(string.Join(";", properties.Select(property => property.Name)));
+                writer.WriteLine(string.Join(";", properties.Select(property => property.Name)));
                 foreach (Experiment experiment in Experiments)
-                    await
-                        writer.WriteLineAsync(string.Join(";",
-                            properties.Select(property => property.GetValue(experiment).ToString())));
+
+                    writer.WriteLine(string.Join(";",
+                        properties.Select(property => property.GetValue(experiment, null).ToString())));
                 writer.Close();
             }
         }

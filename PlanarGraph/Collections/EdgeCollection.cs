@@ -1,16 +1,24 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using PlanarGraph.Comparer;
 using PlanarGraph.Data;
 
 namespace PlanarGraph.Collections
 {
-    public class EdgeCollection : StackListQueue<Edge>
+    public class EdgeCollection : SortedStackListQueue<Edge>
     {
+        private static readonly EdgeComparer EdgeComparer = new EdgeComparer();
+
+        public EdgeCollection(IEnumerable<Edge> edges)
+            : base(edges)
+        {
+            Comparer = EdgeComparer;
+        }
+
         public EdgeCollection()
         {
-            Comparer = new EdgeComparer();
+            Comparer = EdgeComparer;
         }
+
         public override bool Equals(object obj)
         {
             return base.Equals(obj);

@@ -1,36 +1,103 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using PlanarGraph.Types;
 
 namespace PlanarGraph.Collections
 {
     public class StackListQueue<T> : List<T>
     {
-        public IComparer<T> Comparer { get; set; }
+        #region
 
-        public void Enqueue(T value)
+        public StackListQueue(IEnumerable<T> value)
+        {
+            AddRange(value);
+        }
+
+        public StackListQueue(T value)
         {
             Add(value);
         }
 
-        public T Dequeue()
+        public StackListQueue()
+        {
+        }
+
+        #endregion
+
+        public virtual void Enqueue(T value)
+        {
+            Add(value);
+        }
+
+        public virtual void Enqueue(IEnumerable<T> value)
+        {
+            AddRange(value);
+        }
+
+        public virtual void ReplaceAll(IEnumerable<T> value)
+        {
+            List<T> list = value.ToList();
+            Clear();
+            AddRange(list);
+        }
+
+        public virtual T Dequeue()
         {
             T value = this[0];
             RemoveAt(0);
             return value;
         }
 
-        public void Push(T value)
+        public void Rotate()
+        {
+            base.Add(this[0]);
+            base.RemoveAt(0);
+        }
+
+        public void Rotate(int count)
+        {
+            base.AddRange(GetRange(0, count));
+            base.RemoveRange(0, count);
+        }
+
+        public virtual IEnumerable<T> Dequeue(int count)
+        {
+            IEnumerable<T> value = GetRange(0, count);
+            RemoveRange(0, count);
+            return value;
+        }
+
+        public virtual IEnumerable<T> GetReverse()
+        {
+            int count = Count - 1;
+            return this.Select((t, i) => this[count - i]);
+        }
+
+        public virtual void Push(T value)
         {
             Add(value);
         }
 
-        public void Add(IEnumerable<T> value)
+        public virtual void Prepend(T value)
+        {
+            Insert(0, value);
+        }
+
+        public virtual void Add(IEnumerable<T> value)
         {
             AddRange(value);
         }
 
-        public T Pop()
+        public virtual void AddExcept(T item)
+        {
+            if (!Contains(item)) Add(item);
+        }
+
+        public virtual void AddRangeExcept(IEnumerable<T> value)
+        {
+            AddRange(value.Except(this));
+        }
+
+        public virtual T Pop()
         {
             int index = Count;
             T value = this[--index];
@@ -38,90 +105,60 @@ namespace PlanarGraph.Collections
             return value;
         }
 
-        public static StackListQueue<T> IntersectSorted(StackListQueue<T> array1, StackListQueue<T> array2,
-            IComparer<T> comparer)
+        public virtual IEnumerable<T> Pop(int count)
         {
-            int i = 0;
-            int j = 0;
-            var stackListQueue = new StackListQueue<T>();
-            while (i < array1.Count && j < array2.Count)
-            {
-                int value = comparer.Compare(array1[i], array2[j]);
-                if (value == 0)
-                {
-                    stackListQueue.Add(array1[i]);
-                    i++;
-                    j++;
-                }
-                else if (value < 0) i++;
-                else j++;
-            }
-            return stackListQueue;
+            int index = Count - count;
+            IEnumerable<T> value = GetRange(index, count);
+            RemoveRange(index, count);
+            return value;
         }
 
-        public static StackListQueue<T> DistinctSorted(StackListQueue<T> array1, StackListQueue<T> array2,
-            IComparer<T> comparer)
+        public virtual void Push(IEnumerable<T> value)
         {
-            int i = 0;
-            int j = 0;
-            var stackListQueue = new StackListQueue<T>();
-            while (i < array1.Count && j < array2.Count)
-            {
-                int value = comparer.Compare(array1[i], array2[j]);
-                if (value != 0)
-                {
-                    stackListQueue.Add(value < 0 ? array1[i++] : array2[j++]);
-                }
-                else
-                {
-                    stackListQueue.Add(array1[i++]);
-                    j++;
-                }
-            }
-            if (i < array1.Count)
-                stackListQueue.AddRange(array1.GetRange(i, array1.Count - i));
-            if (j < array2.Count)
-                stackListQueue.AddRange(array2.GetRange(j, array2.Count - j));
-            return stackListQueue;
+            AddRange(value);
         }
+
 
         public bool Contains(IEnumerable<T> collection)
         {
-            if (!collection.Select(Contains).Aggregate(true, Boolean.And)) return false;
-            int index = IndexOf(collection.First());
-            int count = Count;
-            return collection.Select((item, index1) => item.Equals(this[(index + index1)%count]))
-                .Aggregate(true, Boolean.And) ||
-                   collection.Select((item, index1) => item.Equals(this[(index + count - index1)%count]))
-                       .Aggregate(true, Boolean.And);
+            return collection.All(Contains);
+        }
+
+        public virtual bool BelongsTo(StackListQueue<T> collection)
+        {
+            if (!this.All(collection.Contains)) return false;
+            var forward = new StackListQueue<T>(collection);
+            for (int index = forward.IndexOf(this[0]);
+                index >= 0 && index + Count <= forward.Count();
+                index = forward.IndexOf(this[0]))
+            {
+                if (this.SequenceEqual(forward.GetRange(index, Count))) return true;
+                forward.RemoveRange(0, index);
+            }
+            return false;
         }
 
         public override bool Equals(object obj)
         {
             var collection = obj as StackListQueue<T>;
-            return collection != null && Count == collection.Count && Contains(collection);
+            return collection != null && Count == collection.Count &&
+                   this.SequenceEqual(collection);
         }
 
         public override int GetHashCode()
         {
-            List<T> list = this.ToList();
-            list.Sort(Comparer);
-            int index = IndexOf(list.First());
-            List<T> vertices = GetRange(index, Count - index);
-            vertices.AddRange(GetRange(0, index));
-            if (vertices.Count > 1 && Comparer.Compare(vertices[1], vertices[vertices.Count - 1]) > 0)
-            {
-                vertices.Reverse();
-                vertices.Insert(0, vertices.Last());
-                vertices.RemoveAt(vertices.Count - 1);
-            }
-            return vertices.Aggregate(0,
+            return this.Aggregate(0,
                 (current, item) => (current << 1) ^ (current >> (8*sizeof (int) - 1)) ^ item.GetHashCode());
         }
 
         public override string ToString()
         {
             return string.Join(",", this.Select(item => item.ToString()));
+        }
+
+        public void Append(T value)
+        {
+            Add(value);
         }
     }
 }

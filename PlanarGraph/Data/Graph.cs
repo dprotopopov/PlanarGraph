@@ -5,7 +5,6 @@ using System.Linq;
 using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
 using PlanarGraph.GF2;
-using Boolean = PlanarGraph.Types.Boolean;
 
 namespace PlanarGraph.Data
 {
@@ -14,23 +13,29 @@ namespace PlanarGraph.Data
     ///     Граф является набором вершин и сегментов
     ///     Каждый сегмент состоит из двух вершин
     /// </summary>
-    public class Graph : SegmentEnum
+    public class Graph : SegmentCollection, IElement
     {
-        protected readonly VertexComparer _vertexComparer = new VertexComparer();
+        private readonly KeyValuePairVertexVertexComparer _keyValuePairVertexVertexComparer =
+            new KeyValuePairVertexVertexComparer();
 
         public Graph()
         {
         }
 
         public Graph(IEnumerable<Segment> segments)
+            : base(segments.Distinct())
         {
-            AddRange(segments.Distinct().ToList());
         }
 
-        public Graph(IEnumerable<KeyValuePair<Vertex, VertexEnum>> children)
+        public Graph(Segment segment)
+            : base(segment)
         {
-            AddRange(children.SelectMany(child => child.Value.Select(vertex => new Segment(child.Key, vertex)))
-                .Distinct());
+        }
+
+        public Graph(IEnumerable<KeyValuePair<Vertex, VertexSortedCollection>> children)
+            : base(children.SelectMany(child => child.Value.Select(vertex => new Segment(child.Key, vertex)))
+                .Distinct())
+        {
         }
 
         public Graph(Circle circle)
@@ -43,20 +48,21 @@ namespace PlanarGraph.Data
             Add(edge);
         }
 
-        public Graph(Graph graph)
+        public Graph(Path path)
         {
-            AddRange(graph);
+            Add(path);
         }
 
-        public Dictionary<Vertex, VertexEnum> ChildrenOrParents
+        public Dictionary<Vertex, VertexSortedCollection> Children
         {
             get
             {
                 return this.Select(segment => segment.First())
                     .Union(this.Select(segment => segment.Last()))
-                    .Distinct().ToDictionary(
+                    .Distinct()
+                    .ToDictionary(
                         vertex => vertex,
-                        vertex => new VertexEnum(
+                        vertex => new VertexSortedCollection(
                             this.Where(segment => segment.First().Equals(vertex)).
                                 Select(segment => segment.Last())
                                 .Union(this.Where(segment => segment.Last().Equals(vertex)).
@@ -65,43 +71,162 @@ namespace PlanarGraph.Data
         }
 
 
-        /// <summary>
-        ///     Проверка, что граф связный
-        /// </summary>
-        public bool IsConnected
+        public static PathDictionary GetSubgraphPaths(
+            IEnumerable<Vertex> vertices,
+            IEnumerable<KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>> cachedAllGraphPaths)
         {
-            get { return GetAllSubGraphs().Count() == 1; }
+            return new PathDictionary(GetFromToPaths(vertices, vertices, cachedAllGraphPaths)
+                .Select(pair => new {pair, list1 = pair.Value.Where(path => path.All(vertices.Contains))})
+                .Where(@t => @t.list1.Any())
+                .Select(@t => new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(@t.pair.Key,
+                    new PathCollection(@t.list1))));
+        }
+
+        public static PathDictionary GetFromToPaths(
+            IEnumerable<Vertex> listFrom, IEnumerable<Vertex> listTo,
+            IEnumerable<KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>> cachedAllGraphPaths)
+        {
+            return new PathDictionary(cachedAllGraphPaths
+                .Where(
+                    pair =>
+                        listFrom.Contains(pair.Key.Key) &&
+                        listTo.Contains(pair.Key.Value)));
         }
 
         /// <summary>
-        ///     Проверка, что граф имеет хотя бы один цикл
+        ///     Получение всех путей в графе
         /// </summary>
-        public bool HasCircle
+        /// <returns></returns>
+        public PathDictionary GetAllGraphPaths()
         {
-            get { return GetAllCircles().Any(); }
-        }
+            var stackListQueue =
+                new StackListQueue<KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>>
+                    (
+                    Vertices.Select(
+                        vertix =>
+                            new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
+                                new KeyValuePair<Vertex, Vertex>(vertix, vertix),
+                                new PathCollection(new Path(vertix))))
+                    );
 
-        /// <summary>
-        ///     граф не имеет мостов, т. е. ребер, после удаления которых, граф распадается на две компоненты связности
-        /// </summary>
-        public bool HasNoBridges
-        {
-            get
+            var collection =
+                new StackListQueue<KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>>();
+
+            Dictionary<Vertex, VertexSortedCollection> children = Children;
+
+            while (stackListQueue.Any())
             {
-                var graph = new Graph(this);
-                graph.RemoveAllTrees();
+                for (int i = stackListQueue.Count(); i-- > 0;)
+                {
+                    KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection> pair = stackListQueue.Dequeue();
+                    collection.Add(pair);
+                    if (children.ContainsKey(pair.Key.Key))
+                        foreach (Vertex first in children[pair.Key.Key])
+                            if (first.Equals(pair.Key.Value))
+                                collection.AddExcept(new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
+                                    new KeyValuePair<Vertex, Vertex>(first, pair.Key.Value),
+                                    new PathCollection
+                                        (
+                                        pair.Value.Where(path => path.Last().Equals(first))
+                                            .Select(path => new Path(first) {path})
+                                            .Distinct()
+                                        )));
+                            else
+                                stackListQueue.AddExcept(new KeyValuePair
+                                    <KeyValuePair<Vertex, Vertex>, PathCollection>(
+                                    new KeyValuePair<Vertex, Vertex>(first, pair.Key.Value),
+                                    new PathCollection
+                                        (
+                                        pair.Value.Where(path => !path.Contains(first))
+                                            .Select(path => new Path(first) {path})
+                                            .Distinct()
+                                        )));
+                    if (children.ContainsKey(pair.Key.Value))
+                        foreach (Vertex last in children[pair.Key.Value])
+                            if (last.Equals(pair.Key.Key))
+                                collection.AddExcept(new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
+                                    new KeyValuePair<Vertex, Vertex>(pair.Key.Key, last),
+                                    new PathCollection
+                                        (
+                                        pair.Value.Where(path => path.First().Equals(last))
+                                            .Select(path => new Path(path) {last})
+                                            .Distinct()
+                                        )));
+                            else
+                                stackListQueue.AddExcept(new KeyValuePair
+                                    <KeyValuePair<Vertex, Vertex>, PathCollection>(
+                                    new KeyValuePair<Vertex, Vertex>(pair.Key.Key, last),
+                                    new PathCollection
+                                        (
+                                        pair.Value.Where(path => !path.Contains(last))
+                                            .Select(path => new Path(path) {last})
+                                            .Distinct()
+                                        )));
+                }
+                for (int i = stackListQueue.Count(); i-- > 0;)
+                {
+                    KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection> pair = stackListQueue.Dequeue();
+                    stackListQueue.Enqueue(pair);
+                    if (pair.Key.Key.Equals(pair.Key.Value)) continue;
+                    stackListQueue.AddExcept(new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
+                        new KeyValuePair<Vertex, Vertex>(pair.Key.Value, pair.Key.Key),
+                        new PathCollection {pair.Value.Select(path => new Path(path.GetReverse()))}));
+                }
 
-                var graph1 = new Graph();
-                foreach (Circle circle in GetAllCircles())
-                    graph1.Add(circle);
+                collection = new StackListQueue<KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>>
+                    (
+                    collection.Where(pair => pair.Value.Any())
+                    );
+                stackListQueue = new StackListQueue<KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>>
+                    (
+                    stackListQueue.Where(pair => pair.Value.Any())
+                    );
+                collection.Sort(_keyValuePairVertexVertexComparer);
+                stackListQueue.Sort(_keyValuePairVertexVertexComparer);
 
-                return !graph.Except(graph1).Any();
+                KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection> pair1 = collection.Dequeue();
+                pair1 = new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
+                    pair1.Key, new PathCollection(pair1.Value.Distinct()));
+                for (int i = collection.Count(); i-- > 0;)
+                {
+                    KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection> pair2 =
+                        collection.Dequeue();
+                    if (_keyValuePairVertexVertexComparer.Compare(pair1, pair2) == 0)
+                    {
+                        pair1 = new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
+                            pair1.Key, new PathCollection(pair1.Value.Union(pair2.Value).Distinct()));
+                    }
+                    else
+                    {
+                        collection.Enqueue(pair1);
+                        pair1 = pair2;
+                    }
+                }
+                collection.Enqueue(pair1);
+                if (!stackListQueue.Any()) break;
+
+                pair1 = stackListQueue.Dequeue();
+                pair1 = new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
+                    pair1.Key, new PathCollection(pair1.Value.Distinct()));
+                for (int i = stackListQueue.Count(); i-- > 0;)
+                {
+                    KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection> pair2 =
+                        stackListQueue.Dequeue();
+                    if (_keyValuePairVertexVertexComparer.Compare(pair1, pair2) == 0)
+                    {
+                        pair1 = new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
+                            pair1.Key, new PathCollection(pair1.Value.Union(pair2.Value).Distinct()));
+                    }
+                    else
+                    {
+                        stackListQueue.Enqueue(pair1);
+                        pair1 = pair2;
+                    }
+                }
+                stackListQueue.Enqueue(pair1);
             }
+            return new PathDictionary(collection.Where(pair=>pair.Value.Any()));
         }
-
-        private IEnumerable<Circle> AllCircles { get; set; }
-        private IEnumerable<Path> AllBranches { get; set; }
-        private IEnumerable<Graph> AllSubGraphs { get; set; }
 
         public override bool Equals(object obj)
         {
@@ -126,10 +251,10 @@ namespace PlanarGraph.Data
                 graph.Add(new Vertex(i), new Vertex(j));
             }
             Debug.Assert(
-                graph.ChildrenOrParents.SelectMany(pair => pair.Value
-                    .Select(value => graph.ChildrenOrParents.ContainsKey(value)
-                                     && graph.ChildrenOrParents[value].Contains(pair.Key)))
-                    .Aggregate(true, Boolean.And));
+                graph.Children.All(pair => pair.Value
+                    .All(value => graph.Children.ContainsKey(value)
+                                  && graph.Children[value].Contains(pair.Key)))
+                );
             return graph;
         }
 
@@ -151,10 +276,6 @@ namespace PlanarGraph.Data
                 foreach (Segment segment in segments)
                     Remove(segment);
             }
-
-            AllBranches = null;
-            AllSubGraphs = null;
-            AllCircles = null;
         }
 
         /// <summary>
@@ -171,37 +292,11 @@ namespace PlanarGraph.Data
                         vertex => this.Count(segment1 => segment1.Contains(vertex)) == 1)).ToList())
                 foreach (Segment segment in segments)
                     Remove(segment);
-
-            AllBranches = null;
-            AllSubGraphs = null;
-            AllCircles = null;
-        }
-
-        /// <summary>
-        ///     Нахождение всех мостов графа
-        ///     Мосты представляют собой деревья
-        /// </summary>
-        /// <returns></returns>
-        public IEnumerable<Graph> GetAllBridges()
-        {
-            var list = new List<Graph>();
-            foreach (Graph graph in GetAllSubGraphs())
-            {
-                graph.RemoveAllTrees();
-                list.AddRange(
-                    new Graph(
-                        graph.Except(
-                            graph.GetAllCircles()
-                                .Select(circle => new Graph(circle))
-                                .SelectMany(circlegraph => circlegraph)
-                                .Distinct())).GetAllSubGraphs());
-            }
-            return list;
         }
 
         public override string ToString()
         {
-            return string.Join(Environment.NewLine,
+            return String.Join(":",
                 new[]
                 {
                     Vertices.ToString(),
@@ -215,31 +310,24 @@ namespace PlanarGraph.Data
         /// <returns></returns>
         public IEnumerable<Graph> GetAllSubGraphs()
         {
-            if (AllSubGraphs != null) return AllSubGraphs;
             var list = new List<Graph>();
             List<Vertex> vertexes = Vertices.ToList();
             while (vertexes.Any())
             {
                 var stackListQueue = new StackListQueue<Vertex> {vertexes.First()};
-                var list1 = new VertexCollection();
+                var list1 = new VertexUnsortedCollection();
                 while (stackListQueue.Any())
                 {
                     Vertex pop = stackListQueue.Pop();
                     vertexes.Remove(pop);
                     list1.Add(pop);
-                    stackListQueue.AddRange(ChildrenOrParents[pop].Intersect(vertexes).Except(stackListQueue));
+                    stackListQueue.AddRange(Children[pop].Intersect(vertexes).Except(stackListQueue));
                 }
-                Dictionary<Vertex, VertexEnum> children = list1.ToDictionary(vertex => vertex,
-                    vertex => ChildrenOrParents[vertex]);
+                Dictionary<Vertex, VertexSortedCollection> children = list1.ToDictionary(vertex => vertex,
+                    vertex => Children[vertex]);
                 list.Add(new Graph(children));
             }
-            AllSubGraphs = list;
-            return AllSubGraphs;
-        }
-
-        public Graph GetSubgraph(IEnumerable<Vertex> vertices)
-        {
-            return new Graph(this.Where(segment => segment.All(vertices.Contains)));
+            return list;
         }
 
         /// <summary>
@@ -247,180 +335,83 @@ namespace PlanarGraph.Data
         ///     Длина цикла должна быть больше двух
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<Circle> GetAllCircles()
+        public IEnumerable<Circle> GetAllGraphCircles(
+            IEnumerable<KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>> cachedAllGraphPaths)
         {
-            if (AllCircles != null) return AllCircles;
-            var list = new List<Circle>();
-            var stackListQueue = new StackListQueue<Path>();
-
             var graph1 = new Graph(this);
             graph1.RemoveAllTrees();
-            foreach (
-                var children in
-                    graph1.GetAllSubGraphs()
-                        .Select(graph => graph.Vertices)
-                        .Select(collection => collection.ToDictionary(vertex => vertex,
-                            vertex => new VertexEnum(ChildrenOrParents[vertex].Intersect(collection))))
-                )
-            {
-                // Граф, представленный children является одной компонентой связанности
-                stackListQueue.Add(new Path(children.Keys.First()));
-                while (stackListQueue.Any())
-                {
-                    Path pop = stackListQueue.Dequeue();
-                    int count = pop.Count;
-                    Debug.Assert(children.ContainsKey(pop.Last()));
-                    if (children[pop.First()].Any())
-                    {
-                        List<Vertex> list2 = children[pop.First()].Intersect(pop).ToList();
-                        List<int> indexes2 =
-                            list2.Select(vertex =>
-                                pop.IndexOf(vertex)).ToList();
-                        list.AddRange(
-                            list2.Select(
-                                (vertex, index) =>
-                                    new Circle(pop.GetRange(0, indexes2[index] + 1)))
-                                .Where(circle => circle.Count > 2)
-                                .Except(list));
-
-                        stackListQueue.AddRange(
-                            children[pop.First()].Except(pop).Select(
-                                vertex =>
-                                    new Path(vertex) {pop})
-                                .Except(stackListQueue)
-                            );
-                    }
-                    if (!children[pop.Last()].Any())
-                    {
-                        List<Vertex> list1 = children[pop.Last()].Intersect(pop).ToList();
-                        List<int> indexes1 =
-                            list1.Select(vertex =>
-                                pop.IndexOf(vertex)).ToList();
-                        list.AddRange(
-                            list1.Select(
-                                (vertex, index) =>
-                                    new Circle(pop.GetRange(indexes1[index], count - indexes1[index])))
-                                .Where(circle => circle.Count > 2)
-                                .Except(list));
-                        stackListQueue.AddRange(
-                            children[pop.Last()].Except(pop).Select(
-                                vertex =>
-                                    new Path(pop) {vertex})
-                                .Except(stackListQueue)
-                            );
-                    }
-                }
-            }
-            AllCircles = list.Distinct().ToList();
-            return AllCircles;
+            IEnumerable<Circle> list = (from pair in cachedAllGraphPaths
+                where pair.Key.Key.Equals(pair.Key.Value)
+                from path in pair.Value
+                where path.Count > 3
+                select new Circle(path.GetRange(0, path.Count - 1)));
+            return list.Distinct();
         }
 
         /// <summary>
         ///     Поиск минимальных путей в графе, соединяющих любые две точки
-        ///     Условие поиска - граф должен быть связанным, точки должны принадлежать графу
         /// </summary>
         /// <returns></returns>
-        public Dictionary<KeyValuePair<Vertex, Vertex>, List<Path>> GetMinPaths(IEnumerable<Vertex> vertices)
+        public Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> GetMinPaths(IEnumerable<Vertex> vertices,
+            IEnumerable<KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>> cachedAllGraphPaths)
         {
             Debug.Assert(Vertices.Any());
-            Debug.Assert(vertices.Select(Vertices.Contains).Aggregate(true, Boolean.And));
-            Debug.Assert(vertices.Distinct().Count() == vertices.Count());
-            var getMinPaths = new Dictionary<KeyValuePair<Vertex, Vertex>, List<Path>>();
-            // Случай 1.  Узлы лежат на одной ветви
-            // Случай 2.  Узлы либо лежат на разных ветвях, либо на циклах
-            // Узлы могут лежать на ветвях, не входящих в циклы
-            // Мы рассматриваем только узлы лежащие на циклах
-            var stackListQueue = new StackListQueue<Path>();
+            return
+                cachedAllGraphPaths.Where(pair => vertices.Contains(pair.Key.Key) && vertices.Contains(pair.Key.Value))
+                    .ToDictionary(pair => pair.Key, pair => pair.Value);
+        }
 
-            var graph1 = new Graph(this);
-            graph1.RemoveAllTrees();
+        public bool BelongsTo(Graph graph)
+        {
+            throw new NotImplementedException();
+        }
 
-            foreach (
-                var children in
-                    GetAllCircles()
-                        .Select(circle => circle.ToList())
-                        .Where(collection => vertices.Select(collection.Contains).Count() >= 2)
-                        .Select(collection => collection.ToDictionary(vertex => vertex,
-                            vertex => new VertexEnum(ChildrenOrParents[vertex].Intersect(collection))))
-                )
+        public bool BelongsTo(Circle circle)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Edge edge)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Path path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Segment segment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Graph graph)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Circle circle)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Edge edge)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Path path)
+        {
+            Dictionary<Vertex, VertexSortedCollection> children = Children;
+            int count = path.Count;
+            if (count == 0) return false;
+            if (!children.ContainsKey(path[0])) return false;
+            for (int i = 1; i < count; i++)
             {
-                // Граф, представленный children является одной компонентой связанности
-
-                List<Vertex> second = children.Keys.Intersect(vertices).ToList();
-                if (!second.Any()) continue;
-                Dictionary<KeyValuePair<Vertex, Vertex>, List<Path>> dictionary = children.Keys.ToDictionary
-                    (
-                        key => new KeyValuePair<Vertex, Vertex>(key, key),
-                        key => new List<Path> {new Path(key)}
-                    );
-                foreach (
-                    var keys in
-                        from pair in children
-                        from vertex in pair.Value
-                        select new List<Vertex> {pair.Key, vertex})
-                {
-                    keys.Sort(_vertexComparer);
-                    var key = new KeyValuePair<Vertex, Vertex>(keys[0], keys[1]);
-                    if (!dictionary.ContainsKey(key))
-                        dictionary.Add(key, new List<Path> {new Path {keys}});
-                }
-
-                stackListQueue.AddRange(second.Select(vertex => new Path(vertex)));
-
-                while (stackListQueue.Any())
-                {
-                    Path pop = stackListQueue.Dequeue();
-                    Debug.Assert(children.ContainsKey(pop.Last()));
-                    Debug.Assert(children.ContainsKey(pop.First()));
-
-                    {
-                        // Проверяем является ли данный путь, соединяющий две точки
-                        // минимальным путём. И если ранее был найден путь более короткий,
-                        // то пропускаем цикл
-                        var keys = new List<Vertex> {pop.First(), pop.Last()};
-                        keys.Sort(_vertexComparer);
-                        var key = new KeyValuePair<Vertex, Vertex>(keys[0], keys[1]);
-                        if (!dictionary.ContainsKey(key)) dictionary.Add(key, new List<Path> {pop});
-                        else if (dictionary[key].First().Count > pop.Count)
-                            dictionary[key] = new List<Path> {pop};
-                        else if (dictionary[key].First().Count == pop.Count && !dictionary[key].Contains(pop))
-                            dictionary[key].Add(pop);
-                        else if (dictionary[key].First().Count < pop.Count) continue;
-                    }
-
-                    stackListQueue.AddRange(
-                        children[pop.First()].Except(pop).Select(
-                            vertex =>
-                                new Path(vertex) {pop})
-                            .Except(stackListQueue)
-                        );
-                    stackListQueue.AddRange(
-                        children[pop.Last()].Except(pop).Select(
-                            vertex =>
-                                new Path(pop) {vertex})
-                            .Except(stackListQueue)
-                        );
-                }
-
-                foreach (var pair in (from first in second
-                    from last in second
-                    where _vertexComparer.Compare(first, last) < 0
-                    select new KeyValuePair<Vertex, Vertex>(first, last)))
-                    if (dictionary.ContainsKey(pair))
-                        foreach (Path path in dictionary[pair])
-                        {
-                            var keys = new List<Vertex> {path.First(), path.Last()};
-                            keys.Sort(_vertexComparer);
-                            var key = new KeyValuePair<Vertex, Vertex>(keys[0], keys[1]);
-                            if (!getMinPaths.ContainsKey(key)) getMinPaths.Add(key, new List<Path> {path});
-                            else if (getMinPaths[key].First().Count > path.Count)
-                                getMinPaths[key] = new List<Path> {path};
-                            else if (getMinPaths[key].First().Count == path.Count &&
-                                     !getMinPaths[key].Contains(path))
-                                getMinPaths[key].Add(path);
-                        }
+                if (!children[path[i - 1]].Contains(path[i])) return false;
             }
-            return getMinPaths;
+            return true;
         }
 
         #region
@@ -430,10 +421,7 @@ namespace PlanarGraph.Data
         /// </summary>
         public bool IsQuasicircle
         {
-            get
-            {
-                return Vertices.Select(vertex => ChildrenOrParents[vertex].Count%2 == 0).Aggregate(true, Boolean.And);
-            }
+            get { return Vertices.All(vertex => Children[vertex].Count%2 == 0); }
         }
 
         /// <summary>
@@ -474,12 +462,12 @@ namespace PlanarGraph.Data
         {
             Debug.Assert(circle.Any());
             int count = circle.Count;
-            var collection = new SegmentEnum();
+            var collection = new SegmentCollection();
             for (int i = 0; i < count; i++)
             {
                 collection.Add(new Segment(circle[i], circle[(i + 1)%count]));
             }
-            Debug.Assert(collection.Select(Contains).Aggregate(true, Boolean.And));
+            Debug.Assert(collection.All(Contains));
             List<int> indexes = collection.Select(segment => IndexOf(segment)).ToList();
             indexes.Sort();
             var booleanVector = new BooleanVector();
@@ -499,46 +487,27 @@ namespace PlanarGraph.Data
 
         public void Add(Vertex vertex1, Vertex vertex2)
         {
-            if (!vertex1.Equals(vertex2)) base.Add(new Segment(vertex1, vertex2));
-        }
-
-        public new void Add(IEnumerable<Segment> segments)
-        {
-            List<Segment> collection = segments.Distinct().Except(this).ToList();
-            AddRange(collection);
-        }
-
-        public void Add(IEnumerable<Path> paths)
-        {
-            foreach (Path path in paths)
-                Add(path);
+            Add(new Segment(vertex1, vertex2));
         }
 
         public void Add(Circle circle)
         {
             int count = circle.Count();
-            for (int i = 0; i < count; i++)
-            {
-                Add(circle[i], circle[(i + 1)%count]);
-            }
+            AddRange(circle.Select((item, index) => new Segment(circle[index], circle[(index + 1)%count])));
         }
 
-        private void Add(Edge edge)
+        public void Add(Edge edge)
         {
             int count = edge.Count();
-            for (int i = 0; i < count; i++)
-            {
-                Add(edge[i], edge[(i + 1)%count]);
-            }
+            AddRange(edge.Select((item, index) => new Segment(edge[index], edge[(index + 1)%count])));
         }
 
         public void Add(Path path)
         {
             int count = path.Count();
-            for (int i = 0; i < count - 1; i++)
-            {
-                Add(path[i], path[i + 1]);
-            }
+            AddRange(
+                Enumerable.Range(0, count - 1)
+                    .Select((item, index) => new Segment(path[index], path[(index + 1)%count])));
         }
 
         #endregion
@@ -548,11 +517,20 @@ namespace PlanarGraph.Data
         /// <summary>
         ///     Список узлов графа
         /// </summary>
-        public VertexEnum Vertices
+        public VertexSortedCollection Vertices
         {
-            get { return new VertexEnum(ChildrenOrParents.Keys); }
+            get { return new VertexSortedCollection(Children.Keys); }
         }
 
         #endregion
+
+        public Graph GetSubgraph(IEnumerable<Vertex> vertices)
+        {
+            return new Graph(Children.Where(pair => vertices.Contains(pair.Key))
+                .Select(pair => new KeyValuePair<Vertex, VertexSortedCollection>(pair.Key
+                    , new VertexSortedCollection(pair.Value.Intersect(vertices))))
+                .Where(pair => pair.Value.Any())
+                .ToDictionary(pair => pair.Key, pair => pair.Value));
+        }
     }
 }

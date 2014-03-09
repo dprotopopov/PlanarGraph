@@ -7,12 +7,8 @@ namespace PlanarGraph.GF2
 {
     public class BooleanVector : StackListQueue<bool>
     {
-        public BooleanVector(IEnumerable<bool> bools)
+        public BooleanVector(IEnumerable<bool> bools) : base(bools)
         {
-            foreach (bool item in bools)
-            {
-                Add(item);
-            }
         }
 
         public BooleanVector()
@@ -34,7 +30,8 @@ namespace PlanarGraph.GF2
         {
             int count = vector2.Count;
             var vector = new BooleanVector(vector1.Select((b, index) => Boolean.Xor(b, index < count && vector2[index])));
-            if (vector2.Count > vector1.Count) vector.AddRange(vector2.GetRange(vector1.Count, vector2.Count - vector1.Count));
+            if (vector2.Count > vector1.Count)
+                vector.AddRange(vector2.GetRange(vector1.Count, vector2.Count - vector1.Count));
             return vector;
         }
 
@@ -43,14 +40,15 @@ namespace PlanarGraph.GF2
             int count = vector2.Count;
             return vector1.Where((b, index) => b && index < count && vector2[index]).Count();
         }
+
         public static int Module(BooleanVector vector1)
         {
-            return vector1.Where((b, index) => b ).Count();
+            return vector1.Where((b, index) => b).Count();
         }
 
         public bool IsZero()
         {
-            return this.Select(b => !b).Aggregate(Boolean.And);
+            return this.All(b => !b);
         }
     }
 }

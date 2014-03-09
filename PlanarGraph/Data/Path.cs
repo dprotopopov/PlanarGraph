@@ -9,11 +9,10 @@ namespace PlanarGraph.Data
     ///     Класс пути в графе
     ///     Путь содержит неограниченное число вершин
     /// </summary>
-    public class Path : VertexCollection
+    public class Path : VertexUnsortedCollection, IElement
     {
-        public Path(IEnumerable<Vertex> list)
+        public Path(IEnumerable<Vertex> list) : base(list)
         {
-            AddRange(list);
         }
 
         public Path()
@@ -21,13 +20,13 @@ namespace PlanarGraph.Data
         }
 
         public Path(Vertex vertex)
+            : base(vertex)
         {
-            Add(vertex);
         }
 
         public Path(Vertex vertex1, Vertex vertex2)
+            : base(vertex1)
         {
-            Add(vertex1);
             Add(vertex2);
         }
 
@@ -38,12 +37,14 @@ namespace PlanarGraph.Data
 
         public override bool Equals(object obj)
         {
-            return base.Equals(obj);
+            var path = obj as Path;
+            return path != null && (base.Equals(path) || base.Equals(path.GetReverse()));
         }
 
         public override int GetHashCode()
         {
-            return base.GetHashCode();
+            var reverse = new VertexUnsortedCollection {GetReverse()};
+            return base.GetHashCode() ^ reverse.GetHashCode();
         }
 
         /// <summary>
@@ -69,51 +70,99 @@ namespace PlanarGraph.Data
             return !intersect.Any();
         }
 
-        public bool Belongs(Edge edge)
+        public bool FromTo(IEnumerable<Vertex> collection)
         {
-            return edge.Contains(this.First()) &&
-                   edge.Contains(this.Last());
+            return FromTo(collection, collection);
         }
 
-        public bool Belongs(Graph graph)
+        public bool FromTo(IEnumerable<Vertex> from, IEnumerable<Vertex> to)
         {
-            int count = this.Count(vertex => graph.Vertices.Contains(vertex));
-            if (!graph.ChildrenOrParents.ContainsKey(this[0])) return false;
-            for (int i = 0; i < count - 1; i++)
-            {
-                if (!graph.ChildrenOrParents[this[i]].Contains(this[i + 1]))
-                    return false;
-            }
-            return true;
+            return from.Contains(this.First()) &&
+                   to.Contains(this.Last());
+        }
+
+        public bool BelongsTo(Circle circle)
+        {
+            return BelongsTo(new Graph(circle));
+        }
+
+        public bool BelongsTo(Edge edge)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool BelongsTo(Path path)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool BelongsTo(Segment segment)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Graph graph)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Circle circle)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Edge edge)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Path path)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool Contains(Segment segment)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool BelongsTo(Graph graph)
+        {
+            Dictionary<Vertex, VertexSortedCollection> children = graph.Children;
+            return this.All(children.ContainsKey) &&
+                   Enumerable.Range(0, Count - 1).All(i => children[this[i]].Contains(this[i + 1]));
         }
 
         public IEnumerable<Path> Split(Graph graph)
         {
+            Debug.Assert(Count>=2);
             var list = new List<Path>();
-            int count1 = this.Count(vertex => graph.Vertices.Contains(vertex));
-            if (count1 == 0) return list;
-            int count = Count;
-            Vertex first = this.First(vertex => graph.Vertices.Contains(vertex));
-            int index = IndexOf(first);
-            var indexes = new List<int> {index++};
-            for (int i = 0; i < count - 1; i++, index++)
+            var indexes =
+                new StackListQueue<int>(GetRange(1, Count - 2).Intersect(graph.Vertices).Select(v => IndexOf(v)));
+            indexes.Sort();
+            indexes.Prepend(0);
+            indexes.Append(Count - 1);
+            Dictionary<Vertex, VertexSortedCollection> children = graph.Children;
+            for (int prev = indexes.Dequeue(); indexes.Any(); prev = indexes.Dequeue())
             {
-                if (indexes.Count%2 == 1 &&
-                    !graph.ChildrenOrParents[this[(index + count - 1)%count]].Contains(this[(index)%count]))
-                    indexes.Add(index);
-
-                if (indexes.Count%2 == 0 && graph.Vertices.Contains(this[index%count]))
-                    indexes.Add(index);
+                if (((prev + 1) == indexes[0])
+                    && children.ContainsKey(this[prev])
+                    && children[this[prev]].Contains(this[indexes[0]]))
+                    continue;
+                list.Add(new Path(GetRange(prev, indexes[0] - prev + 1)));
             }
-            if (indexes.Count <= 2) return list;
-            for (int i = 1; 2*i < indexes.Count; i++)
-            {
-                index = indexes[2*i - 1] - 1;
-                var path = new Path();
-                while (index <= indexes[2*i]) path.Add(this[index++%count]);
-                list.Add(path);
-            }
+            Debug.WriteLineIf(list.Any(), this + " split by " + graph + " is " +
+                                          string.Join(",", list.Select(item => item.ToString())));
             return list;
+        }
+
+        public static bool IsNoVertix(Path path)
+        {
+            return path.Count != 1;
+        }
+        public static bool IsNoCircle(Path path)
+        {
+            return !path.First().Equals(path.Last());
         }
     }
 }

@@ -1,21 +1,28 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using PlanarGraph.Comparer;
 using PlanarGraph.Data;
 
 namespace PlanarGraph.Collections
 {
-    public class VertexCollection : StackListQueue<Vertex>
+    public class VertexUnsortedCollection : StackListQueue<Vertex>
     {
-        public VertexCollection(IEnumerable<int> list)
+        public VertexUnsortedCollection(IEnumerable<int> list)
         {
-            Comparer = new VertexComparer();
             AddRange(list.Select(id => new Vertex(id)));
         }
 
-        public VertexCollection()
+        public VertexUnsortedCollection()
         {
-            Comparer = new VertexComparer();
+        }
+
+        protected VertexUnsortedCollection(IEnumerable<Vertex> list)
+        {
+            AddRange(list);
+        }
+
+        public VertexUnsortedCollection(Vertex vertex)
+            : base(vertex)
+        {
         }
 
         public override bool Equals(object obj)

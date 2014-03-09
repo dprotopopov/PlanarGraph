@@ -6,19 +6,14 @@ namespace PlanarGraph.Comparer
 {
     public class SegmentComparer : IComparer<Segment>
     {
-        public SegmentComparer()
-        {
-            VertexComparer = new VertexComparer();
-        }
-
-        private VertexComparer VertexComparer { get; set; }
+        private static readonly VertexComparer VertexComparer = new VertexComparer();
 
         public int Compare(Segment x, Segment y)
         {
+            int value = x.Count - y.Count;
+            if (value != 0) return value;
             List<Vertex> list1 = x.ToList();
             List<Vertex> list2 = y.ToList();
-            int value = list1.Count - list2.Count;
-            if (value != 0) return value;
             list1.Sort(VertexComparer);
             list2.Sort(VertexComparer);
 

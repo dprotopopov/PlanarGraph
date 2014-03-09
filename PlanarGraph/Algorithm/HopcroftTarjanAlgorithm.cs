@@ -6,8 +6,8 @@ using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
 using PlanarGraph.Data;
 using PlanarGraph.GF2;
+using PlanarGraph.Parallel;
 using PlanarGraph.Worker;
-using Boolean = PlanarGraph.Types.Boolean;
 
 namespace PlanarGraph.Algorithm
 {
@@ -35,42 +35,53 @@ namespace PlanarGraph.Algorithm
         public bool IsPlanar(Graph graph)
         {
             Debug.Assert(
-                graph.ChildrenOrParents.SelectMany(pair => pair.Value
-                    .Select(value => graph.ChildrenOrParents.ContainsKey(value)
-                                     && graph.ChildrenOrParents[value].Contains(pair.Key)))
-                    .Aggregate(Boolean.And));
+                graph.Children.All(pair => pair.Value
+                    .All(value => graph.Children.ContainsKey(value)
+                                  && graph.Children[value].Contains(pair.Key))));
 
             if (WorkerBegin != null) WorkerBegin();
-            // Шаг первый - удаляем все узлы степени 2
+            // Шаг первый - удаляем все листья и узлы степени 2
+
+            // листья представляют собой дерево и нарисовать его плоскую укладку тривиально.
+            graph.RemoveAllTrees();
+
             // Замечание. Если на ребра планарного графа нанести произвольное число вершин степени 2, 
             // то он останется планарным; равным образом, если на ребра непланарного графа 
             // нанести вершины степени 2, то он планарным не станет.
             graph.RemoveIntermedians();
 
             // Шаг второй - граф нужно укладывать отдельно по компонентам связности.
-            var stackListQueue = new StackListQueue<Graph> {graph.GetAllSubGraphs().ToList()};
+            var stackListQueue = new StackListQueue<Graph> {graph.GetAllSubGraphs()};
 
-            while (stackListQueue.Any())
+            // Глобальные кэшированные данные
+            Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> cachedAllGraphPaths =
+                graph.GetAllGraphPaths();
+
+            foreach (Graph subGraph in stackListQueue)
             {
-                Graph subGraph = stackListQueue.Dequeue();
                 // листья представляют собой дерево и нарисовать его плоскую укладку тривиально.
                 subGraph.RemoveAllTrees();
                 if (subGraph.Vertices.Count() < 2) continue;
-                List<Circle> circles = subGraph.GetAllCircles().ToList();
+
+                PathDictionary cachedSubGraphPaths =
+                    Graph.GetSubgraphPaths(subGraph.Vertices, cachedAllGraphPaths);
+
+                IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
                 Debug.Assert(subGraph.Vertices.Count() ==
                              circles.SelectMany(circle => circle.ToList()).Distinct().Count());
+
                 if (!circles.Any()) continue; // граф — дерево и нарисовать его плоскую укладку тривиально.
 
                 circles = circles.Where(circle => circle.IsSimpleCircle()).ToList();
                 Debug.Assert(subGraph.Vertices.Count() ==
                              circles.SelectMany(circle => circle.ToList()).Distinct().Count());
 
-                circles = circles.Where(circle => circle.IsTauCircle(subGraph)).ToList();
+                circles = circles.Where(circle => circle.IsTauCircle(subGraph, cachedSubGraphPaths)).ToList();
                 Debug.Assert(subGraph.Vertices.Count() ==
                              circles.SelectMany(circle => circle.ToList()).Distinct().Count());
 
-                var matrix = new BooleanMatrix(circles.Select(circle => subGraph.GetVector(circle)).ToList());
-                Debug.Assert(matrix.Length == subGraph.Count);
+                var matrix = new BooleanMatrix(circles.Select(subGraph.GetVector));
+                //Debug.Assert(matrix.Length == subGraph.Count);
                 // отыскание минимума некоторого функционала на множестве базисов подпространства квазициклов
                 // Шаг 1. Приведение матрицы к ортогональному виду
                 for (int i = matrix.Count; i-- > 0;)
@@ -118,15 +129,46 @@ namespace PlanarGraph.Algorithm
                     List<int> indexOfIndex = Enumerable.Range(n - k, k).ToList();
                     while (matrixMacLane > 0)
                     {
+                        int rows = matrix.Count;
+                        int columns = matrix.Length;
+                        CudifyBooleanMatrixMacLane.SetBooleanMatrix(
+                            matrix.SelectMany(
+                                row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0))
+                                .ToArray(), rows, columns);
                         List<int> indexes = values.ToList();
                         foreach (int index in indexOfIndex) indexes[index] = n - 1;
                         while (matrixMacLane > 0)
                         {
-                            var matrix2 = new BooleanMatrix(
-                                indexes.Select(
-                                    (value, index) =>
-                                        value == index ? matrix[index] : BooleanVector.Xor(matrix[value], matrix[index])));
-                            long matrixMacLane2 = matrix2.MacLane;
+                            long matrixMacLane2;
+                                ///////////////////////////////////////////////////
+                                // Вычисление целевой функции обычным методом
+                                var matrix2 = new BooleanMatrix(
+                                    indexes.Select(
+                                        (value, index) =>
+                                            value == index
+                                                ? matrix[index]
+                                                : BooleanVector.Xor(matrix[value], matrix[index])));
+                                matrixMacLane2 = matrix2.MacLane;
+                                //
+                                /////////////////////////////////////////////////////
+                            //try
+                            //{
+                            //    /////////////////////////////////////////////////////
+                            //    // 
+                            //    // Использование параллельных вычислений CUDA
+                            //    // для расчёта целевой функции симплекс-метода
+                            //    //
+
+                            //    CudifyBooleanMatrixMacLane.SetIndexes(indexes.ToArray());
+                            //    CudifyBooleanMatrixMacLane.Execute();
+                            //    matrixMacLane2 = CudifyBooleanMatrixMacLane.GetMacLane();
+
+                            //    //
+                            //    /////////////////////////////////////////////////////
+                            //}
+                            //catch (Exception ex)
+                            //{
+                            //}
                             if (matrixMacLane > matrixMacLane2)
                             {
                                 values = indexes.ToList();

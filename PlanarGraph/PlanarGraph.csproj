@@ -9,11 +9,14 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>PlanarGraph</RootNamespace>
     <AssemblyName>PlanarGraph</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
+    <RestorePackages>true</RestorePackages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -23,7 +26,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -34,9 +37,28 @@
   <PropertyGroup>
     <StartupObject />
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Cudafy.NET">
-      <HintPath>..\packages\CUDAfy.NET.1.25.4963.10126\lib\net40\Cudafy.NET.dll</HintPath>
+    <Reference Include="Cudafy.NET, Version=1.25.4963.10126, Culture=neutral, PublicKeyToken=63a4c9931616906b, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Users\User\Documents\CUDAfy.NET\Cudafy.NET.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -53,21 +75,30 @@
     <Compile Include="Algorithm\GammaAlgorithm.cs" />
     <Compile Include="Algorithm\HopcroftTarjanAlgorithm.cs" />
     <Compile Include="Algorithm\IPlanarAlgorithm.cs" />
+    <Compile Include="Collections\CircleCollection.cs" />
     <Compile Include="Collections\EdgeCollection.cs" />
-    <Compile Include="Collections\Enum.cs" />
-    <Compile Include="Collections\SegmentEnum.cs" />
+    <Compile Include="Collections\PathCollection.cs" />
+    <Compile Include="Collections\SortedStackListQueue.cs" />
+    <Compile Include="Collections\SegmentCollection.cs" />
     <Compile Include="Collections\StackListQueue.cs" />
-    <Compile Include="Collections\VertexCollection.cs" />
-    <Compile Include="Collections\VertexEnum.cs" />
+    <Compile Include="Collections\VertexUnsortedCollection.cs" />
+    <Compile Include="Collections\VertexSortedCollection.cs" />
     <Compile Include="Comparer\BooleanVectorComparer.cs" />
+    <Compile Include="Comparer\CircleComparer.cs" />
     <Compile Include="Comparer\EdgeComparer.cs" />
+    <Compile Include="Comparer\GraphComparer.cs" />
+    <Compile Include="Comparer\KeyValuePairVertexVertexComparer.cs" />
+    <Compile Include="Comparer\PathComparer.cs" />
     <Compile Include="Comparer\SegmentComparer.cs" />
     <Compile Include="Comparer\VertexComparer.cs" />
+    <Compile Include="Parallel\CudafyFindSequencesIntersections.cs" />
+    <Compile Include="Parallel\CudifyBooleanMatrixMacLane.cs" />
     <Compile Include="Data\Circle.cs" />
+    <Compile Include="Data\IElement.cs" />
     <Compile Include="Data\Path.cs" />
-    <Compile Include="Data\Tree.cs" />
     <Compile Include="GF2\BooleanMatrix.cs" />
     <Compile Include="GF2\BooleanVector.cs" />
+    <Compile Include="PathDictionary.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Data\Edge.cs" />
     <Compile Include="Data\Graph.cs" />
@@ -85,6 +116,7 @@
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
     </Compile>
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
@@ -112,7 +144,9 @@
     <Content Include="Tools\CudafyModuleViewerx86.exe" />
     <Content Include="Tools\place_these_executables_in_same_folder_as_Cudafy.NET.dll.txt" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
