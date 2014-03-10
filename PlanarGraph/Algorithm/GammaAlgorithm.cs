@@ -80,19 +80,26 @@ namespace PlanarGraph.Algorithm
 
                     IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
 
-                    if (!circles.Any())
+                    if (!circles.Any() && !context.Edges.Any())
                     {
                         // граф — дерево и нарисовать его плоскую укладку тривиально.
+                        // Поскольку мы ещё не начинали рисовать, то значит всё проверено
                         continue;
                     }
+                    
                     // Инициализация алгоритма производится так: выбираем любой простой цикл;
                     // и получаем две грани: Γ1 — внешнюю и Γ2 — внутреннюю
 
-                    if (!context.Edges.Any())
+                    if (circles.Any() && !context.Edges.Any())
                         context.Edges.Add(new Edge(circles.First()));
 
-                    context.Edges.Add(new Edge(circles.First()));
-                    context.Builded.Add(context.Edges.Last());
+                    if (circles.Any())
+                    {
+                        context.Edges.Add(new Edge(circles.First()));
+                        context.Builded.Add(context.Edges.Last());
+                    }
+                    // Если циклов нет, то надо проверить, что данное дерево 
+                    // можно вписать в уже построенный граф
 
                     Debug.WriteLine("SubGraph " + subGraph);
                     Debug.WriteLine("builded " + context.Builded);
