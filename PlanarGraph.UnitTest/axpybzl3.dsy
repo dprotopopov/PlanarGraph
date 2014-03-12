@@ -128,7 +128,7 @@ namespace PlanarGraph.UnitTest
             graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 4, 6, 5})));
             var path = new Path();
             path.Add(new VertexUnsortedCollection(new List<int> {1, 6, 4, 5, 1}));
-            IEnumerable<Path> paths = path.SplitBy(graph);
+            IEnumerable<Path> paths = path.Split(graph);
             Console.WriteLine(string.Join(Environment.NewLine, paths.Select(item => item.ToString())));
             Assert.AreEqual(2, paths.Count());
         }
@@ -234,7 +234,7 @@ namespace PlanarGraph.UnitTest
         }
 
         [TestMethod]
-        public void TestMacLaneAlgorithm()
+        public void TestHopcroftTarjanAlgorithm()
         {
             var graph = new Graph();
             graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 6})));
@@ -267,12 +267,12 @@ namespace PlanarGraph.UnitTest
             foreach (Circle circle in circles)
             {
                 Console.WriteLine(circle);
-                Dictionary<KeyValuePair<Vertex, Vertex>, int> minPathLengths = graph.GetMinPathLengths(circle,
+                Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> minPaths = graph.GetMinPaths(circle,
                     cachedAllGraphPaths);
                 Console.WriteLine(@"IsTauCircle = " + circle.IsTauCircle(graph, cachedAllGraphPaths));
-                foreach (var pair in minPathLengths)
+                foreach (var pair in minPaths)
                 {
-                    Console.WriteLine("{0}=>{1}", pair.Key, pair.Value);
+                    Console.WriteLine("{0}=>{1}", pair.Key, string.Join(",", pair.Value.Select(item => item.ToString())));
                 }
             }
             Assert.AreEqual(3, circles.Count());
@@ -297,146 +297,181 @@ namespace PlanarGraph.UnitTest
         [TestMethod]
         public void TestCudafyMacLane()
         {
-            var random = new Random();
-            for (int k = 0; k < 10; k++)
-            {
-                var matrix =
-                    new BooleanMatrix(
-                        Enumerable.Range(0, 5).Select(i1 => Enumerable.Range(0, 10).Select(i => random.Next()%2 == 0)));
-                int[] indexes = Enumerable.Range(1, 5).Select(i => random.Next()%5).ToArray();
-                CudafyBooleanMatrix.ExecuteUpdate();
-                Console.WriteLine(string.Join(",",
-                    CudafyBooleanMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
-                Console.WriteLine(string.Join(",",
-                    indexes.Select(i => i.ToString()).ToList()));
+            var matrix =
+                new BooleanMatrix(
+                    Enumerable.Range(0, 5).Select(i1 => Enumerable.Range(0, 10).Select(i => (i + i1)%3 == 0)));
+            int[] indexes = Enumerable.Range(1, 5).Select(i => i%5).ToArray();
+            ///////////////////////////////////////////////////
+            // Вычисление целевой функции обычным методом
+            var matrix2 = new BooleanMatrix(
+                indexes.Select(
+                    (value, index) =>
+                        value == index
+                            ? matrix[index]
+                            : BooleanVector.Xor(matrix[value], matrix[index])));
 
-                ///////////////////////////////////////////////////
-                // Вычисление целевой функции обычным методом
-                IEnumerable<KeyValuePair<int, int>> dictionary =
-                    indexes.Select((item, value) => new KeyValuePair<int, int>(value, item));
-                var matrix2 = new BooleanMatrix(
-                    dictionary.Select(
-                        pair1 =>
-                            dictionary
-                                .Where(pair2 => pair2.Value == pair1.Key && pair2.Key != pair1.Key)
-                                .Select(pair => matrix[pair.Key])
-                                .Aggregate(matrix[pair1.Key], BooleanVector.Xor)));
+            int macLane1 = matrix2.MacLane;
 
-                int macLane1 = matrix2.MacLane;
+            int rows = matrix.Count;
+            int columns = matrix.Length;
+            CudafyBooleanMatrix.SetBooleanMatrix(
+                matrix.SelectMany(
+                    row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0))
+                    .ToArray(), rows, columns);
+            CudafyBooleanMatrix.SetIndexes(indexes.ToArray());
+            CudafyBooleanMatrix.ExecuteMacLane();
+            int macLane2 = CudafyBooleanMatrix.GetMacLane();
 
-                int rows = matrix.Count;
-                int columns = matrix.Length;
-                lock (CudafyBooleanMatrix.Semaphore)
-                {
-                    CudafyBooleanMatrix.SetBooleanMatrix(
-                        matrix.Select(
-                            row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0).ToArray())
-                            .ToArray());
-                    CudafyBooleanMatrix.SetIndexes(indexes.ToArray());
-                    CudafyBooleanMatrix.ExecuteMacLane();
-                    int macLane2 = CudafyBooleanMatrix.GetMacLane();
+            Console.WriteLine(matrix);
+            Console.WriteLine();
+            Console.WriteLine(matrix2);
+            Console.WriteLine();
 
-                    CudafyBooleanMatrix.ExecuteUpdate();
-                    Console.WriteLine(string.Join(",",
-                        CudafyBooleanMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
+            //Console.WriteLine(string.Join(Environment.NewLine,
+            //    Enumerable.Range(0, rows)
+            //    .Select(row => string.Join("", Enumerable.Range(0, columns)
+            //        .Select(column => CudafyBooleanMatrix.GetBooleanMatrix()[row * columns + column].ToString()).ToList())).ToList()));
 
-                    Console.WriteLine();
-                    Console.WriteLine(matrix);
-                    Console.WriteLine();
-                    Console.WriteLine(matrix2);
-                    Console.WriteLine();
-                    Console.WriteLine(string.Join(Environment.NewLine,
-                        Enumerable.Range(0, rows)
-                            .Select(row => string.Join("", Enumerable.Range(0, columns)
-                                .Select(
-                                    column => CudafyBooleanMatrix.GetBooleanMatrix()[row*columns + column].ToString())
-                                .ToList())).ToList()));
-                    Console.WriteLine();
-
-                    //Console.WriteLine(string.Join(Environment.NewLine,
-                    //    Enumerable.Range(0, rows)
-                    //    .Select(row => string.Join("", Enumerable.Range(0, columns)
-                    //        .Select(column => CudafyBooleanMatrix.GetBooleanMatrix()[row * columns + column].ToString()).ToList())).ToList()));
-
-                    Console.WriteLine(macLane1);
-                    Console.WriteLine(macLane2);
-                    Assert.AreEqual(macLane1, macLane2);
-                }
-            }
+            Console.WriteLine(macLane1);
+            Console.WriteLine(macLane2);
+            Assert.AreEqual(macLane1, macLane2);
         }
 
         [TestMethod]
         public void TestCudafyCanonical()
         {
-            var random = new Random();
-            for (int k = 0; k < 10; k++)
+            var matrix =
+                new BooleanMatrix(
+                    Enumerable.Range(0, 5).Select(i1 => Enumerable.Range(0, 10).Select(i => (i + i1)%3 == 0)));
+
+            int rows = matrix.Count;
+            int columns = matrix.Length;
+            CudafyBooleanMatrix.SetBooleanMatrix(
+                matrix.SelectMany(
+                    row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0))
+                    .ToArray(), rows, columns);
+
+            CudafyBooleanMatrix.ExecuteCanonical();
+            var indexes = (string.Join(Environment.NewLine,
+                CudafyBooleanMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
+
+            Console.WriteLine(matrix);
+            Console.WriteLine();
+            Console.WriteLine(string.Join(Environment.NewLine,
+                Enumerable.Range(0, rows)
+                    .Select(row => string.Join("", Enumerable.Range(0, columns)
+                        .Select(column => CudafyBooleanMatrix.GetBooleanMatrix()[row*columns + column].ToString())
+                        .ToList())).ToList()));
+            Console.WriteLine();
+            Console.WriteLine(string.Join(Environment.NewLine,
+                CudafyBooleanMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
+
+
+            CudafyBooleanMatrix.SetIndexes(Enumerable.Range(0, CudafyBooleanMatrix.GetIndexes().Length).ToArray());
+            CudafyBooleanMatrix.ExecuteMacLane();
+
+            for (int i = matrix.Count; i-- > 0;)
             {
-                var matrix =
-                    new BooleanMatrix(
-                        Enumerable.Range(0, 5).Select(i1 => Enumerable.Range(0, 10).Select(i => random.Next()%2 == 0)));
-
-                StackListQueue<int> list2;
-                int rows = matrix.Count;
-                int columns = matrix.Length;
-                lock (CudafyBooleanMatrix.Semaphore)
-                {
-                    CudafyBooleanMatrix.SetBooleanMatrix(
-                        matrix.Select(
-                            row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0).ToArray())
-                            .ToArray());
-
-                    CudafyBooleanMatrix.ExecuteCanonical();
-
-                    list2 = new StackListQueue<int>(CudafyBooleanMatrix.GetIndexes()
-                        .Select((first, row) => new KeyValuePair<int, int>(row, first))
-                        .Where(pair => pair.Value >= 0)
-                        .Select(pair => pair.Value)
-                        .ToList());
-
-                    Console.WriteLine(matrix);
-                    Console.WriteLine();
-                    Console.WriteLine(string.Join(Environment.NewLine,
-                        Enumerable.Range(0, rows)
-                            .Select(row => string.Join("", Enumerable.Range(0, columns)
-                                .Select(
-                                    column => CudafyBooleanMatrix.GetBooleanMatrix()[row*columns + column].ToString())
-                                .ToList())).ToList()));
-                    Console.WriteLine();
-                    Console.WriteLine(string.Join(Environment.NewLine,
-                        CudafyBooleanMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
-                }
-
-                for (int i = matrix.Count; i-- > 0;)
-                {
-                    BooleanVector vector = matrix.Dequeue();
-                    if (vector.IsZero()) continue;
-                    matrix.Enqueue(vector);
-                }
-                for (int i = matrix.Count; i-- > 0;)
-                {
-                    BooleanVector vector = matrix.Dequeue();
-                    int index = vector.IndexOf(true);
-                    for (int j = matrix.Count; j-- > 0;)
-                    {
-                        BooleanVector vector1 = matrix.Dequeue();
-                        if (vector1.Count > index && vector1[index])
-                        {
-                            vector1 = BooleanVector.Xor(vector1, vector);
-                        }
-                        if (vector1.IsZero()) continue;
-                        matrix.Enqueue(vector1);
-                    }
-                    matrix.Enqueue(vector);
-                }
-                Console.WriteLine("matrix:");
-                Console.WriteLine(matrix);
-                var list1 = new StackListQueue<int>(matrix.Select(booleanVector => booleanVector.IndexOf(true)));
-                list1.Sort();
-                list2.Sort();
-                Console.WriteLine("list1:" + list1);
-                Console.WriteLine("list2:" + list2);
-                Assert.IsTrue(list1.Equals(list2));
+                BooleanVector vector = matrix.Dequeue();
+                if (vector.IsZero()) continue;
+                matrix.Enqueue(vector);
             }
+            for (int i = matrix.Count; i-- > 0;)
+            {
+                BooleanVector vector = matrix.Dequeue();
+                int index = vector.IndexOf(true);
+                for (int j = matrix.Count; j-- > 0;)
+                {
+                    BooleanVector vector1 = matrix.Dequeue();
+                    if (vector1.Count > index && vector1[index])
+                    {
+                        vector1 = BooleanVector.Xor(vector1, vector);
+                    }
+                    if (vector1.IsZero()) continue;
+                    matrix.Enqueue(vector1);
+                }
+                matrix.Enqueue(vector);
+            }
+            Console.WriteLine("matrix:");
+            Console.WriteLine(matrix);
+            var list1 = new StackListQueue<int>(matrix.Select(booleanVector => booleanVector.IndexOf(true)));
+            var list2 = new StackListQueue<int>(indexes
+                .Select((first, row) => new KeyValuePair<int, int>(row, first))
+                .Where(pair => pair.Value >= 0)
+                .Select(pair => pair.Key)
+                .ToList());
+            list1.Sort();
+            list2.Sort();
+            Console.WriteLine("list1:" + list1);
+            Console.WriteLine("list2:" + list2);
+            Assert.IsTrue(list1.Equals(list2));
+        }
+
+        [TestMethod]
+        public void TestCudafyCanonical1()
+        {
+            var matrix =
+                new BooleanMatrix(
+                    Enumerable.Range(0, 5).Select(i1 => Enumerable.Range(0, 10).Select(i => (i + i1)%6 > 0)));
+
+            int rows = matrix.Count;
+            int columns = matrix.Length;
+            CudafyBooleanMatrix.SetBooleanMatrix(
+                matrix.SelectMany(
+                    row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0))
+                    .ToArray(), rows, columns);
+
+            CudafyBooleanMatrix.ExecuteCanonical();
+            var indexes =(string.Join(Environment.NewLine,
+                CudafyBooleanMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
+
+            Console.WriteLine(matrix);
+            Console.WriteLine();
+            Console.WriteLine(string.Join(Environment.NewLine,
+                Enumerable.Range(0, rows)
+                    .Select(row => string.Join("", Enumerable.Range(0, columns)
+                        .Select(column => CudafyBooleanMatrix.GetBooleanMatrix()[row*columns + column].ToString())
+                        .ToList())).ToList()));
+            Console.WriteLine();
+
+            CudafyBooleanMatrix.SetIndexes(Enumerable.Range(0, CudafyBooleanMatrix.GetIndexes().Length).ToArray());
+            CudafyBooleanMatrix.ExecuteMacLane();
+
+            for (int i = matrix.Count; i-- > 0;)
+            {
+                BooleanVector vector = matrix.Dequeue();
+                if (vector.IsZero()) continue;
+                matrix.Enqueue(vector);
+            }
+            for (int i = matrix.Count; i-- > 0;)
+            {
+                BooleanVector vector = matrix.Dequeue();
+                int index = vector.IndexOf(true);
+                for (int j = matrix.Count; j-- > 0;)
+                {
+                    BooleanVector vector1 = matrix.Dequeue();
+                    if (vector1.Count > index && vector1[index])
+                    {
+                        vector1 = BooleanVector.Xor(vector1, vector);
+                    }
+                    if (vector1.IsZero()) continue;
+                    matrix.Enqueue(vector1);
+                }
+                matrix.Enqueue(vector);
+            }
+            Console.WriteLine("matrix:");
+            Console.WriteLine(matrix);
+            var list1 = new StackListQueue<int>(matrix.Select(booleanVector => booleanVector.IndexOf(true)));
+            var list2 = new StackListQueue<int>(indexes
+                .Select((first, row) => new KeyValuePair<int, int>(row, first))
+                .Where(pair => pair.Value >= 0)
+                .Select(pair => pair.Key)
+                .ToList());
+            list1.Sort();
+            list2.Sort();
+            Console.WriteLine("list1:" + list1);
+            Console.WriteLine("list2:" + list2);
+            Assert.IsTrue(list1.Equals(list2));
         }
     }
 }

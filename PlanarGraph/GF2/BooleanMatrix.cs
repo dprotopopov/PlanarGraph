@@ -1,22 +1,66 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using PlanarGraph.Collections;
+using Boolean = PlanarGraph.Types.Boolean;
 
 namespace PlanarGraph.GF2
 {
     public class BooleanMatrix : StackListQueue<BooleanVector>
     {
-
         public BooleanMatrix(IEnumerable<IEnumerable<bool>> list)
         {
-            foreach(var item in list)
+            foreach (var item in list)
                 Add(new BooleanVector(item));
         }
 
+        public BooleanMatrix(IEnumerable<int> indexes)
+        {
+            foreach (int item in indexes)
+                Add(new BooleanVector(Enumerable.Repeat(false, item))
+                {
+                    true,
+                    Enumerable.Repeat(false, indexes.Count() - item - 1)
+                });
+            for (int i = 0; i < indexes.Count(); i++) this[i][i] = true;
+            Debug.Assert(Count == Length);
+        }
+
+        /// <summary>
+        ///     Количество столбцов матрицы
+        /// </summary>
         public int Length
         {
             get { return this.Max(row => row.Count); }
+        }
+
+        /// <summary>
+        ///     Определитель булевой матрицы
+        ///     Матрица обратима тогда и только тогда, когда определитель матрицы отличен от нуля
+        /// </summary>
+        public bool Det
+        {
+            get
+            {
+                Debug.Assert(Count == Length);
+                return !this.Any(vector => vector.IsZero()) && (Count == 1
+                    ? this[0][0]
+                    : (from index in
+                        this[0].Select((b, index) => new KeyValuePair<int, bool>(index, b))
+                            .Where(pair => pair.Value)
+                            .Select(pair => pair.Key)
+                        let vectors = GetRange(1, Count - 1).Select(vector => vector.ToList())
+                        select
+                            new BooleanMatrix(
+                                vectors.Select(
+                                    vector =>
+                                        new BooleanVector(vector.GetRange(0, index))
+                                        {
+                                            vector.GetRange(index + 1, Count - index - 1)
+                                        }))).Aggregate(false,
+                                            (current, submatrix) => Boolean.Xor(current, submatrix.Det)));
+            }
         }
 
         /// <summary>
@@ -31,11 +75,11 @@ namespace PlanarGraph.GF2
         ///     Очевидно, что матрица С соответствует базису Мак-Лейна (т.е. базису, удовлетворяющему условию Мак-Лейна) тогда и
         ///     только тогда, когда F(С) = 0.
         /// </summary>
-        public long MacLane
+        public int MacLane
         {
             get
             {
-                var list = new List<long>();
+                var list = new List<int>();
                 int length = Length;
                 for (int i = 0; i < length; i++)
                 {
@@ -45,7 +89,7 @@ namespace PlanarGraph.GF2
             }
         }
 
-        public long E
+        public int E
         {
             get { return this.Sum(item1 => this.Sum(item2 => BooleanVector.Module(item1, item2))); }
         }

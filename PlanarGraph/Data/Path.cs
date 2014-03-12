@@ -133,7 +133,7 @@ namespace PlanarGraph.Data
                    Enumerable.Range(0, Count - 1).All(i => children[this[i]].Contains(this[i + 1]));
         }
 
-        public IEnumerable<Path> Split(Graph graph)
+        public IEnumerable<Path> SplitBy(Graph graph)
         {
             Debug.Assert(Count>=2);
             var list = new List<Path>();
@@ -163,6 +163,27 @@ namespace PlanarGraph.Data
         public static bool IsNoCircle(Path path)
         {
             return !path.First().Equals(path.Last());
+        }
+
+        public IEnumerable<Path> SplitBy(Segment segment)
+        {
+            var list = new List<Path>();
+            var indexes =
+                new StackListQueue<int>(GetRange(1, Count - 2).Intersect(segment).Select(v => IndexOf(v)));
+            indexes.Sort();
+            indexes.Prepend(0);
+            indexes.Append(Count - 1);
+            for (int prev = indexes.Dequeue(); indexes.Any(); prev = indexes.Dequeue())
+            {
+                if (((prev + 1) == indexes[0])
+                    && segment.Contains(this[prev])
+                    && segment.Contains(this[indexes[0]]))
+                    continue;
+                list.Add(new Path(GetRange(prev, indexes[0] - prev + 1)));
+            }
+            Debug.WriteLineIf(list.Any(), this + " split by " + segment + " is " +
+                                          string.Join(",", list.Select(item => item.ToString())));
+            return list;
         }
     }
 }

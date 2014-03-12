@@ -24,23 +24,23 @@ namespace PlanarGraph.Experiment
                 WorkerBegin = GammaAlgorithmStartTimer,
                 WorkerComplite = GammaAlgorithmStopTimer
             };
-            HopcroftTarjanAlgorithm = new HopcroftTarjanAlgorithm
+            MacLaneAlgorithm = new MacLaneAlgorithm
             {
-                WorkerBegin = HopcroftTarjanAlgorithmStartTimer,
-                WorkerComplite = HopcroftTarjanAlgorithmStopTimer
+                WorkerBegin = MacLaneAlgorithmStartTimer,
+                WorkerComplite = MacLaneAlgorithmStopTimer
             };
         }
 
         private GammaAlgorithm GammaAlgorithm { get; set; }
-        private HopcroftTarjanAlgorithm HopcroftTarjanAlgorithm { get; set; }
+        private MacLaneAlgorithm MacLaneAlgorithm { get; set; }
         public Workspace Workspace { get; set; }
         public BindingList<Experiment> Experiments { get; set; }
 
         public TimeSpan GammaAlgorithmTotalExecutionTime { get; set; }
         public DateTime GammaAlgorithmStartTime { get; set; }
 
-        public TimeSpan HopcroftTarjanAlgorithmTotalExecutionTime { get; set; }
-        public DateTime HopcroftTarjanAlgorithmStartTime { get; set; }
+        public TimeSpan MacLaneAlgorithmTotalExecutionTime { get; set; }
+        public DateTime MacLaneAlgorithmStartTime { get; set; }
 
         public void GammaAlgorithmStartTimer()
         {
@@ -52,14 +52,14 @@ namespace PlanarGraph.Experiment
             GammaAlgorithmTotalExecutionTime += DateTime.Now.Subtract(GammaAlgorithmStartTime);
         }
 
-        public void HopcroftTarjanAlgorithmStartTimer()
+        public void MacLaneAlgorithmStartTimer()
         {
-            HopcroftTarjanAlgorithmStartTime = DateTime.Now;
+            MacLaneAlgorithmStartTime = DateTime.Now;
         }
 
-        public void HopcroftTarjanAlgorithmStopTimer(bool result)
+        public void MacLaneAlgorithmStopTimer(bool result)
         {
-            HopcroftTarjanAlgorithmTotalExecutionTime += DateTime.Now.Subtract(HopcroftTarjanAlgorithmStartTime);
+            MacLaneAlgorithmTotalExecutionTime += DateTime.Now.Subtract(MacLaneAlgorithmStartTime);
         }
 
         private void runToolStripMenuItem_Click(object sender, EventArgs e)
@@ -77,18 +77,18 @@ namespace PlanarGraph.Experiment
                     experiment.NumberOfVertixes = n;
                     experiment.NumberOfSegments = m;
                     GammaAlgorithmTotalExecutionTime = new TimeSpan(0);
-                    HopcroftTarjanAlgorithmTotalExecutionTime = new TimeSpan(0);
+                    MacLaneAlgorithmTotalExecutionTime = new TimeSpan(0);
                     bool areEqual = true;
                     for (long i = 0; i < Workspace.NumberOfTest; i++)
                     {
                         Graph graph = Graph.Random(n, m);
                         bool result1 = GammaAlgorithm.IsPlanar(graph);
-                        bool result2 = HopcroftTarjanAlgorithm.IsPlanar(graph);
+                        bool result2 = MacLaneAlgorithm.IsPlanar(graph);
                         areEqual = areEqual && (result1 == result2);
                     }
                     experiment.ResultsAreEqual = areEqual;
                     experiment.GammaAlgorithmTotalExecutionTime = GammaAlgorithmTotalExecutionTime;
-                    experiment.HopcroftTarjanAlgorithmTotalExecutionTime = HopcroftTarjanAlgorithmTotalExecutionTime;
+                    experiment.MacLaneAlgorithmTotalExecutionTime = MacLaneAlgorithmTotalExecutionTime;
                     experiment.EndDateTime = DateTime.Now;
                     Experiments.Add(experiment);
                     dataGridView1.DataSource = null;

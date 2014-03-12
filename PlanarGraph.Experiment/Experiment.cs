@@ -10,7 +10,7 @@ namespace PlanarGraph.Experiment
         public int NumberOfVertixes { get; set; }
         public int NumberOfSegments { get; set; }
         public TimeSpan GammaAlgorithmTotalExecutionTime { get; set; }
-        public TimeSpan HopcroftTarjanAlgorithmTotalExecutionTime { get; set; }
+        public TimeSpan MacLaneAlgorithmTotalExecutionTime { get; set; }
         public bool ResultsAreEqual { get; set; }
     }
 }

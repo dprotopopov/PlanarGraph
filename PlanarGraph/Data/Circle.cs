@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using PlanarGraph.Collections;
@@ -27,6 +28,65 @@ namespace PlanarGraph.Data
         {
         }
 
+        public bool BelongsTo(Graph graph)
+        {
+            int count = this.Count(vertex => graph.Vertices.Contains(vertex));
+            if (count != Count) return false;
+            Vertex first = this.First(vertex => graph.Vertices.Contains(vertex));
+            int index = IndexOf(first);
+            for (int i = 0; i < count; i++, index++)
+            {
+                if (!graph.Children[this[(index + count - 1)%count]].Contains(this[(index)%count]))
+                    return false;
+            }
+            return true;
+        }
+
+        public bool BelongsTo(Circle circle)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Edge edge)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Path path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Segment segment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Graph graph)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Circle circle)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Edge edge)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Path path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Segment segment)
+        {
+            throw new NotImplementedException();
+        }
+
         public override string ToString()
         {
             return string.Format("[{0}]", base.ToString());
@@ -53,18 +113,25 @@ namespace PlanarGraph.Data
         public bool IsTauCircle(Graph graph,
             Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> cachedGraphAllPaths)
         {
-            Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> dictionary1 = graph.GetMinPaths(this,
+            Dictionary<KeyValuePair<Vertex, Vertex>, int> minPathLengths = graph.GetMinPathLengths(this,
                 cachedGraphAllPaths);
 
-            Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> dictionary2 = Graph.GetSubgraphPaths(this,
-                cachedGraphAllPaths);
+            var circleGraph = new Graph(this);
 
-            return !dictionary1.SelectMany(
+            Dictionary<KeyValuePair<Vertex, Vertex>, int> lengths = circleGraph.GetMinPathLengths(this,
+                circleGraph.GetAllGraphPaths());
+
+            //Debug.WriteLine("dictionary1");
+            //Debug.WriteLine(string.Join(Environment.NewLine,
+            //    minPathLengths.Select(pair => string.Format("{0}:{1}", pair.Key, pair.Value))));
+
+            //Debug.WriteLine("dictionary2");
+            //Debug.WriteLine(string.Join(Environment.NewLine,
+            //    lengths.Select(pair => string.Format("{0}:{1}", pair.Key, pair.Value))));
+
+            return minPathLengths.All(
                 pair =>
-                    dictionary2.ContainsKey(pair.Key)
-                        ? pair.Value.Where(
-                            value => value.Count < dictionary2[pair.Key].First().Count)
-                        : pair.Value).Any();
+                    lengths.ContainsKey(pair.Key) && pair.Value >= lengths[pair.Key]);
         }
 
         public IEnumerable<Path> Split(Graph graph)
@@ -86,65 +153,6 @@ namespace PlanarGraph.Data
             Debug.WriteLineIf(list.Any(), this + " split by " + graph + " is " +
                                           string.Join(",", list.Select(item => item.ToString())));
             return list;
-        }
-
-        public bool BelongsTo(Graph graph)
-        {
-            int count = this.Count(vertex => graph.Vertices.Contains(vertex));
-            if (count != Count) return false;
-            Vertex first = this.First(vertex => graph.Vertices.Contains(vertex));
-            int index = IndexOf(first);
-            for (int i = 0; i < count; i++, index++)
-            {
-                if (!graph.Children[this[(index + count - 1)%count]].Contains(this[(index)%count]))
-                    return false;
-            }
-            return true;
-        }
-
-        public bool BelongsTo(Circle circle)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Edge edge)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Path path)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Segment segment)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Graph graph)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Circle circle)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Edge edge)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Path path)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Segment segment)
-        {
-            throw new System.NotImplementedException();
         }
 
         public override bool Equals(object obj)
