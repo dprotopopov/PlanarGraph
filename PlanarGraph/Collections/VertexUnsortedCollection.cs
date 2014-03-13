@@ -35,6 +35,11 @@ namespace PlanarGraph.Collections
             return base.GetHashCode();
         }
 
+        public override IEnumerable<int> GetInts(Vertex values)
+        {
+            return new List<int> {values.Id};
+        }
+
         public override string ToString()
         {
             return string.Join(",", this.Select(item => item.ToString()));

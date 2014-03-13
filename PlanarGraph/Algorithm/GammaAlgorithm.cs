@@ -59,8 +59,10 @@ namespace PlanarGraph.Algorithm
     /// </summary>
     public class GammaAlgorithm : IPlanarAlgorithm
     {
-        public bool IsPlanar(Graph graph)
+        public bool IsPlanar(Graph graphArgument)
         {
+            if (WorkerLog != null) WorkerLog("Начало гамма-алгоритма");
+            var graph = new Graph(graphArgument);
             Debug.Assert(
                 graph.Children.All(pair => pair.Value
                     .All(value => graph.Children.ContainsKey(value)
@@ -69,20 +71,19 @@ namespace PlanarGraph.Algorithm
 
             if (WorkerBegin != null) WorkerBegin();
             // Шаг первый - удаляем все листья и узлы степени 2
-            Debug.WriteLine("graph " + graph);
+            if (WorkerLog != null) WorkerLog("Удаляем все листья и узлы степени 2");
 
             // листья представляют собой дерево и нарисовать его плоскую укладку тривиально.
             graph.RemoveAllTrees();
-            Debug.WriteLine("RemoveAllTrees " + graph);
 
             // Замечание. Если на ребра планарного графа нанести произвольное число вершин степени 2, 
             // то он останется планарным; равным образом, если на ребра непланарного графа 
             // нанести вершины степени 2, то он планарным не станет.
             graph.RemoveIntermedians();
-            Debug.WriteLine("RemoveIntermedians " + graph);
 
             // Шаг второй - граф нужно укладывать отдельно по компонентам связности.
-            PathDictionary cachedAllGraphPaths = graph.GetAllGraphPaths();
+            if (WorkerLog != null) WorkerLog("Находим все неповторяющиеся пути в графе");
+            Dictionary<int, PathDictionary> cachedAllGraphPaths = graph.GetAllGraphPaths();
             var queue = new StackListQueue<Context>
             {
                 graph.GetAllSubGraphs().Select(subgraph =>
@@ -94,7 +95,7 @@ namespace PlanarGraph.Algorithm
                                 subgraph
                             },
                         CachedSubGraphPathsQueue =
-                            new StackListQueue<PathDictionary>
+                            new StackListQueue<Dictionary<int, PathDictionary>>
                             {
                                 Graph.GetSubgraphPaths(subgraph.Vertices, cachedAllGraphPaths)
                             },
@@ -104,10 +105,12 @@ namespace PlanarGraph.Algorithm
             Debug.WriteLine("start ");
 
             foreach (Context context in queue)
+            {
+                if (WorkerLog != null) WorkerLog("Проверка связанной компоненты");
                 while (context.SubGraphQueue.Any())
                 {
                     Graph subGraph = context.SubGraphQueue.Dequeue();
-                    Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> cachedSubGraphPaths =
+                    Dictionary<int, PathDictionary> cachedSubGraphPaths =
                         context.CachedSubGraphPathsQueue.Dequeue();
 
                     subGraph.RemoveAllTrees();
@@ -175,6 +178,7 @@ namespace PlanarGraph.Algorithm
                                 buildedVertices,
                                 cachedSubGraphPaths)
                                 .SelectMany(pair => pair.Value)
+                                .SelectMany(pair => pair.Value)
                                 .Where(Path.IsNoVertix)
                                 .Where(Path.IsNoCircle)
                                 ).Distinct());
@@ -186,52 +190,71 @@ namespace PlanarGraph.Algorithm
 
                     while (paths.Any())
                     {
+                        paths.ReplaceAll(paths.Distinct().Where(path => !context.Builded.Contains(path)));
+                        if (!paths.Any()) continue;
                         try
                         {
-                            int[][] matrix;
-                            int[] indexes;
-                            lock (CudafySequencies.Semaphore)
+                            while (paths.Any(path => path.Count > 2))
                             {
-                                CudafySequencies.SetSequencies(
-                                    paths.Select(path => path.Select(vertex => vertex.Id).ToArray()).ToArray(),
-                                    context.Builded.Select(segment => segment.Select(vertex => vertex.Id).ToArray())
-                                        .ToArray()
-                                    );
-                                CudafySequencies.ExecuteIsContains();
-                                matrix = CudafySequencies.GetMatrix();
+                                int[][] matrix;
+                                int[] indexes;
+                                lock (CudafySequencies.Semaphore)
+                                {
+                                    CudafySequencies.SetSequencies(
+                                        paths.Select(
+                                            path =>
+                                                path.GetRange(1, path.Count - 2).Select(vertex => vertex.Id).ToArray())
+                                            .ToArray(),
+                                        context.Builded.Select(segment => segment.Select(vertex => vertex.Id).ToArray())
+                                            .ToArray()
+                                        );
+                                    CudafySequencies.Execute("CountIntersect");
+                                    matrix = CudafySequencies.GetMatrix();
+                                }
+                                lock (CudafyMatrix.Semaphore)
+                                {
+                                    CudafyMatrix.SetMatrix(matrix);
+                                    CudafyMatrix.Execute("IndexOfNonZero");
+                                    indexes = CudafyMatrix.GetIndexes();
+                                }
+                                Dictionary<int, int> dictionary = indexes.Select(
+                                    (value, index) => new KeyValuePair<int, int>(index, value))
+                                    .Where(pair => pair.Value >= 0)
+                                    .ToDictionary(pair => pair.Key, pair => pair.Value);
+                                if (!dictionary.Any()) break;
+                                Debug.Assert(dictionary.All(pair => pair.Key >= 0));
+                                Debug.Assert(dictionary.All(pair => pair.Value >= 0));
+                                Debug.Assert(dictionary.All(pair => pair.Key < paths.Count));
+                                Debug.Assert(dictionary.All(pair => pair.Value < context.Builded.Count));
+                                List<KeyValuePair<Path, Segment>> dictionary2 =
+                                    dictionary.Select(
+                                        pair =>
+                                            new KeyValuePair<Path, Segment>(new Path(paths[pair.Key]),
+                                                new Segment(context.Builded[pair.Value])))
+                                        .ToList();
+                                List<int> list = dictionary.Select(pair => pair.Key).Distinct().ToList();
+                                list.Sort();
+                                Debug.Assert(dictionary2.All(pair => pair.Key.Count > 1));
+                                Debug.Assert(dictionary2.All(pair => pair.Value.Count == 2));
+                                for (int i = list.Count; i-- > 0;) paths.RemoveAt(list[i]);
+                                paths.AddRangeExcept(
+                                    new PathCollection(
+                                        dictionary2.SelectMany(pair => pair.Key.SplitBy(pair.Value)
+                                            .Where(Path.IsNoVertix)
+                                            .Where(Path.IsNoCircle))
+                                            .Distinct()));
+                                paths.ReplaceAll(paths.Distinct().Where(path => !context.Builded.Contains(path)));
                             }
-                            lock (CudafyBooleanMatrix.Semaphore)
-                            {
-                                CudafyBooleanMatrix.SetBooleanMatrix(matrix);
-                                CudafyBooleanMatrix.ExecuteIndexOfNonZero();
-                                indexes = CudafyBooleanMatrix.GetIndexes();
-                            }
-                            IEnumerable<KeyValuePair<int, int>> dictionary = indexes.Select(
-                                (value, index) => new KeyValuePair<int, int>(index, value))
-                                .Where(pair => pair.Value >= 0);
-                            IEnumerable<KeyValuePair<Path, Segment>> dictionary2 =
-                                dictionary.Select(
-                                    pair =>
-                                        new KeyValuePair<Path, Segment>(paths[pair.Key],
-                                            context.Builded[matrix[pair.Key].ToList().IndexOf(1)]));
-                            List<int> list = dictionary.Select(pair => pair.Key).Distinct().ToList();
-                            list.Sort();
-                            for (int i = list.Count; i-- > 0;) paths.RemoveAt(list[i]);
-                            paths.AddRangeExcept(
-                                new PathCollection(
-                                    dictionary2.SelectMany(pair => pair.Key.SplitBy(pair.Value)
-                                        .Where(Path.IsNoVertix)
-                                        .Where(Path.IsNoCircle).ToList())
-                                        .Distinct()));
                         }
                         catch (Exception ex)
                         {
+                            if (WorkerLog != null) WorkerLog(ex.ToString());
                             paths.ReplaceAll(
                                 paths.SelectMany(path => path.SplitBy(context.Builded))
                                     .Where(Path.IsNoVertix)
                                     .Where(Path.IsNoCircle)
                                 );
-                            paths.ReplaceAll(paths.Distinct());
+                            paths.ReplaceAll(paths.Distinct().Where(path => !context.Builded.Contains(path)));
                         }
 
                         if (!paths.Any()) continue;
@@ -281,18 +304,20 @@ namespace PlanarGraph.Algorithm
                                     paths.Select(path => path.Select(vertex => vertex.Id).ToArray()).ToArray(),
                                     context.Edges.Select(edge => edge.Select(vertex => vertex.Id).ToArray()).ToArray()
                                     );
-                                CudafySequencies.ExecuteIsFromTo();
+                                CudafySequencies.Execute("IsFromTo");
                                 matrix = CudafySequencies.GetMatrix();
                             }
-                            lock (CudafyBooleanMatrix.Semaphore)
+                            lock (CudafyMatrix.Semaphore)
                             {
-                                CudafyBooleanMatrix.SetBooleanMatrix(matrix);
-                                CudafyBooleanMatrix.ExecuteMinCount();
-                                counts = CudafyBooleanMatrix.GetCount();
-                                minCount = CudafyBooleanMatrix.GetMinCount();
+                                CudafyMatrix.SetMatrix(matrix);
+                                CudafyMatrix.ExecuteMinCount();
+                                counts = CudafyMatrix.GetCounts();
+                                minCount = CudafyMatrix.GetMinCount();
                             }
                             if (minCount == 0)
                             {
+                                if (WorkerLog != null) WorkerLog("Существует сегмент S, для которого |Γ(S)| = 0");
+                                if (WorkerLog != null) WorkerLog("Граф не планарен");
                                 Debug.WriteLine("существует сегмент S, для которого |Γ(S)| = 0");
                                 Debug.WriteLine("Graph:" + context.Builded);
                                 Debug.WriteLine("Paths:" +
@@ -312,6 +337,7 @@ namespace PlanarGraph.Algorithm
                         }
                         catch (Exception ex)
                         {
+                            if (WorkerLog != null) WorkerLog(ex.ToString());
                             minCount = paths.Select(path => context.Edges.Count(path.FromTo)).Min();
                             if (minCount == 0)
                             {
@@ -343,7 +369,11 @@ namespace PlanarGraph.Algorithm
                         context.Edges.RemoveAt(context.Edges.IndexOf(edge1));
                     }
                 }
+                if (WorkerLog != null) WorkerLog("Конец проверки связанной компоненты");
+            }
             {
+                if (WorkerLog != null) WorkerLog("Конец проверки графа");
+                if (WorkerLog != null) WorkerLog("Граф планарен");
                 bool result = true;
                 if (WorkerComplite != null) WorkerComplite(result);
                 return result;
@@ -353,6 +383,7 @@ namespace PlanarGraph.Algorithm
 
         public WorkerBegin WorkerBegin { get; set; }
         public WorkerComplite WorkerComplite { get; set; }
+        public WorkerLog WorkerLog { get; set; }
 
         private class Context
         {
@@ -366,7 +397,7 @@ namespace PlanarGraph.Algorithm
 
                 // Глобальные кэшированные данные
                 CachedSubGraphPathsQueue =
-                    new StackListQueue<PathDictionary>();
+                    new StackListQueue<Dictionary<int, PathDictionary>>();
             }
 
             public Context(Context context)
@@ -377,13 +408,13 @@ namespace PlanarGraph.Algorithm
                 SubGraphQueue =
                     new StackListQueue<Graph>(context.SubGraphQueue.Select(graph => new Graph(graph)));
                 CachedSubGraphPathsQueue =
-                    new StackListQueue<PathDictionary>(context.CachedSubGraphPathsQueue);
+                    new StackListQueue<Dictionary<int, PathDictionary>>(context.CachedSubGraphPathsQueue);
             }
 
             // Очереди задач
             public StackListQueue<Graph> SubGraphQueue { get; set; }
 
-            public StackListQueue<PathDictionary> CachedSubGraphPathsQueue { get; set; }
+            public StackListQueue<Dictionary<int, PathDictionary>> CachedSubGraphPathsQueue { get; set; }
 
             // Глобальные переменные
             public Graph Builded { get; set; }

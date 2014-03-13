@@ -12,7 +12,7 @@ namespace PlanarGraph.Collections
         public SegmentCollection(IEnumerable<Segment> segments)
         {
             Comparer = SegmentComparer;
-            AddRange(segments.ToList());
+            AddRange(segments);
         }
 
         public SegmentCollection()
@@ -28,7 +28,7 @@ namespace PlanarGraph.Collections
 
         public new void Add(Segment segment)
         {
-            if (!segment.First().Equals(segment.Last())) base.AddExcept(segment);
+            if (!segment.First().Equals(segment.Last())) AddExcept(segment);
         }
 
         public new void AddRange(IEnumerable<Segment> segments)
@@ -36,9 +36,11 @@ namespace PlanarGraph.Collections
             base.AddRangeExcept(segments.Where(segment => !segment.First().Equals(segment.Last())));
         }
 
-        public override bool Equals(object obj)
+        public override IEnumerable<int> GetInts(Segment values)
         {
-            return base.Equals(obj);
+            List<int> list = values.Select(vertex => vertex.Id).ToList();
+            list.Sort();
+            return list;
         }
 
         public override int GetHashCode()

@@ -144,5 +144,15 @@ namespace PlanarGraph.Data
         {
             throw new System.NotImplementedException();
         }
+
+        public bool FromTo(IEnumerable<Vertex> collection)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool FromOrTo(IEnumerable<Vertex> collection)
+        {
+            throw new System.NotImplementedException();
+        }
     }
 }

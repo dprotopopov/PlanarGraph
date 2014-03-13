@@ -87,6 +87,16 @@ namespace PlanarGraph.Data
             throw new NotImplementedException();
         }
 
+        public bool FromTo(IEnumerable<Vertex> collection)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool FromOrTo(IEnumerable<Vertex> collection)
+        {
+            throw new NotImplementedException();
+        }
+
         public override string ToString()
         {
             return string.Format("[{0}]", base.ToString());
@@ -111,7 +121,7 @@ namespace PlanarGraph.Data
         /// <param name="cachedGraphAllPaths"></param>
         /// <returns></returns>
         public bool IsTauCircle(Graph graph,
-            Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> cachedGraphAllPaths)
+            Dictionary<int, PathDictionary> cachedGraphAllPaths)
         {
             Dictionary<KeyValuePair<Vertex, Vertex>, int> minPathLengths = graph.GetMinPathLengths(this,
                 cachedGraphAllPaths);

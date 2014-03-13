@@ -13,8 +13,20 @@ namespace PlanarGraph.UnitTest
     [TestClass]
     public class UnitTest1
     {
-        private readonly IPlanarAlgorithm _gammaAlgorithm = new GammaAlgorithm();
-        private readonly IPlanarAlgorithm _macLaneAlgorithm = new MacLaneAlgorithm();
+        private readonly IPlanarAlgorithm _gammaAlgorithm = new GammaAlgorithm
+        {
+            WorkerLog = WorkerLog,
+        };
+
+        private readonly IPlanarAlgorithm _macLaneAlgorithm = new MacLaneAlgorithm
+        {
+            WorkerLog = WorkerLog,
+        };
+
+        private static void WorkerLog(string text)
+        {
+            Console.WriteLine(text);
+        }
 
         [TestMethod]
         public void TestMethod1()
@@ -24,7 +36,7 @@ namespace PlanarGraph.UnitTest
             graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5})));
             graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 7})));
             Console.WriteLine(graph.ToString());
-            Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> cachedAllGraphPaths =
+            Dictionary<int, PathDictionary> cachedAllGraphPaths =
                 graph.GetAllGraphPaths();
             IEnumerable<Circle> circles = graph.GetAllGraphCircles(cachedAllGraphPaths);
             IEnumerable<Graph> subGraphs = graph.GetAllSubGraphs();
@@ -104,6 +116,20 @@ namespace PlanarGraph.UnitTest
                 var graph2 = new Graph(graph);
                 bool result = graph.Equals(graph2);
                 Assert.IsTrue(result);
+            }
+        }
+
+        [TestMethod]
+        public void TestEquals1()
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                Console.WriteLine(@"Test #" + i);
+                var segment1 = new Segment(new VertexUnsortedCollection(new StackListQueue<int> {i, i + 1}));
+                var segment2 = new Segment(new VertexUnsortedCollection(new StackListQueue<int> {i + 1, i}));
+                var segment3 = new Segment(new VertexUnsortedCollection(new StackListQueue<int> {i + 1, i + 2}));
+                Assert.IsTrue(segment1.Equals(segment2));
+                Assert.IsFalse(segment1.Equals(segment3));
             }
         }
 
@@ -190,8 +216,7 @@ namespace PlanarGraph.UnitTest
             //graph.RemoveAllTrees();
             //Console.WriteLine(graph);
 
-            Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> cachedAllGraphPaths =
-                graph.GetAllGraphPaths();
+            Dictionary<int, PathDictionary> cachedAllGraphPaths = graph.GetAllGraphPaths();
             IEnumerable<Circle> circles = graph.GetAllGraphCircles(cachedAllGraphPaths);
             IEnumerable<Graph> subGraphs = graph.GetAllSubGraphs();
             Console.WriteLine(graph.ToString());
@@ -217,8 +242,7 @@ namespace PlanarGraph.UnitTest
             graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {6, 8, 9, 10})));
             graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {6, 9})));
             graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {8, 10})));
-            Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> cachedAllGraphPaths =
-                graph.GetAllGraphPaths();
+            Dictionary<int, PathDictionary> cachedAllGraphPaths = graph.GetAllGraphPaths();
             IEnumerable<Circle> circles = graph.GetAllGraphCircles(cachedAllGraphPaths);
             IEnumerable<Graph> subGraphs = graph.GetAllSubGraphs();
             Console.WriteLine(graph.ToString());
@@ -261,8 +285,7 @@ namespace PlanarGraph.UnitTest
             graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5})));
             graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 7})));
 
-            Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> cachedAllGraphPaths =
-                graph.GetAllGraphPaths();
+            Dictionary<int, PathDictionary> cachedAllGraphPaths = graph.GetAllGraphPaths();
             IEnumerable<Circle> circles = graph.GetAllGraphCircles(cachedAllGraphPaths);
             foreach (Circle circle in circles)
             {
@@ -304,9 +327,9 @@ namespace PlanarGraph.UnitTest
                     new BooleanMatrix(
                         Enumerable.Range(0, 5).Select(i1 => Enumerable.Range(0, 10).Select(i => random.Next()%2 == 0)));
                 int[] indexes = Enumerable.Range(1, 5).Select(i => random.Next()%5).ToArray();
-                CudafyBooleanMatrix.ExecuteUpdate();
+                CudafyMatrix.ExecuteUpdate();
                 Console.WriteLine(string.Join(",",
-                    CudafyBooleanMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
+                    CudafyMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
                 Console.WriteLine(string.Join(",",
                     indexes.Select(i => i.ToString()).ToList()));
 
@@ -326,19 +349,19 @@ namespace PlanarGraph.UnitTest
 
                 int rows = matrix.Count;
                 int columns = matrix.Length;
-                lock (CudafyBooleanMatrix.Semaphore)
+                lock (CudafyMatrix.Semaphore)
                 {
-                    CudafyBooleanMatrix.SetBooleanMatrix(
+                    CudafyMatrix.SetMatrix(
                         matrix.Select(
                             row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0).ToArray())
                             .ToArray());
-                    CudafyBooleanMatrix.SetIndexes(indexes.ToArray());
-                    CudafyBooleanMatrix.ExecuteMacLane();
-                    int macLane2 = CudafyBooleanMatrix.GetMacLane();
+                    CudafyMatrix.SetIndexes(indexes.ToArray());
+                    CudafyMatrix.ExecuteMacLane();
+                    int macLane2 = CudafyMatrix.GetMacLane();
 
-                    CudafyBooleanMatrix.ExecuteUpdate();
+                    CudafyMatrix.ExecuteUpdate();
                     Console.WriteLine(string.Join(",",
-                        CudafyBooleanMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
+                        CudafyMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
 
                     Console.WriteLine();
                     Console.WriteLine(matrix);
@@ -349,14 +372,14 @@ namespace PlanarGraph.UnitTest
                         Enumerable.Range(0, rows)
                             .Select(row => string.Join("", Enumerable.Range(0, columns)
                                 .Select(
-                                    column => CudafyBooleanMatrix.GetBooleanMatrix()[row*columns + column].ToString())
+                                    column => CudafyMatrix.GetMatrix()[row][column].ToString())
                                 .ToList())).ToList()));
                     Console.WriteLine();
 
                     //Console.WriteLine(string.Join(Environment.NewLine,
                     //    Enumerable.Range(0, rows)
                     //    .Select(row => string.Join("", Enumerable.Range(0, columns)
-                    //        .Select(column => CudafyBooleanMatrix.GetBooleanMatrix()[row * columns + column].ToString()).ToList())).ToList()));
+                    //        .Select(column => CudafyMatrix.GetMatrix()[row * columns + column].ToString()).ToList())).ToList()));
 
                     Console.WriteLine(macLane1);
                     Console.WriteLine(macLane2);
@@ -378,16 +401,16 @@ namespace PlanarGraph.UnitTest
                 StackListQueue<int> list2;
                 int rows = matrix.Count;
                 int columns = matrix.Length;
-                lock (CudafyBooleanMatrix.Semaphore)
+                lock (CudafyMatrix.Semaphore)
                 {
-                    CudafyBooleanMatrix.SetBooleanMatrix(
+                    CudafyMatrix.SetMatrix(
                         matrix.Select(
                             row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0).ToArray())
                             .ToArray());
 
-                    CudafyBooleanMatrix.ExecuteCanonical();
+                    CudafyMatrix.ExecuteCanonical();
 
-                    list2 = new StackListQueue<int>(CudafyBooleanMatrix.GetIndexes()
+                    list2 = new StackListQueue<int>(CudafyMatrix.GetIndexes()
                         .Select((first, row) => new KeyValuePair<int, int>(row, first))
                         .Where(pair => pair.Value >= 0)
                         .Select(pair => pair.Value)
@@ -399,11 +422,11 @@ namespace PlanarGraph.UnitTest
                         Enumerable.Range(0, rows)
                             .Select(row => string.Join("", Enumerable.Range(0, columns)
                                 .Select(
-                                    column => CudafyBooleanMatrix.GetBooleanMatrix()[row*columns + column].ToString())
+                                    column => CudafyMatrix.GetMatrix()[row][column].ToString())
                                 .ToList())).ToList()));
                     Console.WriteLine();
                     Console.WriteLine(string.Join(Environment.NewLine,
-                        CudafyBooleanMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
+                        CudafyMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
                 }
 
                 for (int i = matrix.Count; i-- > 0;)

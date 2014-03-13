@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using PlanarGraph.Collections;
-using Enumerable = System.Linq.Enumerable;
 
 namespace PlanarGraph.Data
 {
@@ -20,62 +20,44 @@ namespace PlanarGraph.Data
         {
         }
 
-        public override bool Equals(object obj)
-        {
-            var segment = obj as Segment;
-            return segment != null && base.Equals(segment);
-        }
-
-        public override int GetHashCode()
-        {
-            return base.GetHashCode();
-        }
-
-        /// <summary>
-        ///     Если все контактные вершины сегмента S имеют номера вершин какой-то грани Γ,
-        ///     то мы будем говорить, что грань Γ вмещает этот сегмент и обозначать S⊂Γ
-        /// </summary>
-        /// <param name="segment"></param>
-        /// <returns></returns>
         public bool BelongsTo(Edge edge)
         {
-            return edge.Contains(Enumerable.First(this)) &&
-                   edge.Contains(Enumerable.Last(this));
+            throw new NotImplementedException();
         }
 
         public bool BelongsTo(Path path)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public bool BelongsTo(Segment segment)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public bool Contains(Graph graph)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public bool Contains(Circle circle)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public bool Contains(Edge edge)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public bool Contains(Path path)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public bool Contains(Segment segment)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public bool BelongsTo(Graph graph)
@@ -88,14 +70,36 @@ namespace PlanarGraph.Data
             return circle.Contains(this);
         }
 
+        public override bool Equals(object obj)
+        {
+            var segment = obj as Segment;
+            return segment != null && base.Equals(segment);
+        }
+
+        public override int GetHashCode()
+        {
+            return base.GetHashCode();
+        }
+
+        public bool FromTo(IEnumerable<Vertex> collection)
+        {
+            return FromTo(collection, collection);
+        }
+
+        public bool FromTo(IEnumerable<Vertex> from, IEnumerable<Vertex> to)
+        {
+            return from.Contains(this.First()) &&
+                   to.Contains(this.Last());
+        }
+
         public override string ToString()
         {
             return string.Format("({0})", base.ToString());
         }
 
-        public bool ConnectedTo(Graph graph)
+        public bool FromOrTo(IEnumerable<Vertex> collection)
         {
-            return graph.Vertices.Contains(this.First()) || graph.Vertices.Contains(this.Last());
+            return collection.Contains(this.First()) || collection.Contains(this.Last());
         }
     }
 }

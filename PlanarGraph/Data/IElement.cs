@@ -1,4 +1,6 @@
-﻿namespace PlanarGraph.Data
+﻿using System.Collections.Generic;
+
+namespace PlanarGraph.Data
 {
     public interface IElement
     {
@@ -13,5 +15,7 @@
         bool Contains(Edge edge);
         bool Contains(Path path);
         bool Contains(Segment segment);
+        bool FromTo(IEnumerable<Vertex> collection);
+        bool FromOrTo(IEnumerable<Vertex> collection);
     }
 }

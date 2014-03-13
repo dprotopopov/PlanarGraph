@@ -4,5 +4,6 @@
     {
         WorkerBegin WorkerBegin { get; set; }
         WorkerComplite WorkerComplite { get; set; }
+        WorkerLog WorkerLog { get; set; }
     }
 }

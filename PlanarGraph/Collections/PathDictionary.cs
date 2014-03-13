@@ -1,8 +1,7 @@
 ﻿using System.Collections.Generic;
-using PlanarGraph.Collections;
 using PlanarGraph.Data;
 
-namespace PlanarGraph
+namespace PlanarGraph.Collections
 {
     public class PathDictionary : Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection>
     {
@@ -12,6 +11,10 @@ namespace PlanarGraph
             {
                 Add(pair.Key, pair.Value);
             }
+        }
+
+        public PathDictionary()
+        {
         }
     }
 }

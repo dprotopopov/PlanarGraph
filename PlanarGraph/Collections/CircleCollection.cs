@@ -1,4 +1,6 @@
-﻿using PlanarGraph.Comparer;
+﻿using System.Collections.Generic;
+using System.Linq;
+using PlanarGraph.Comparer;
 using PlanarGraph.Data;
 
 namespace PlanarGraph.Collections
@@ -15,6 +17,10 @@ namespace PlanarGraph.Collections
             return base.Equals(obj);
         }
 
+        public override IEnumerable<int> GetInts(Circle values)
+        {
+            return values.Select(value => value.Id).ToList();
+        }
         public override int GetHashCode()
         {
             return base.GetHashCode();

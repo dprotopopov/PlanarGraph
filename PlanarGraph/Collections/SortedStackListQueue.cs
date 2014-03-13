@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 
@@ -27,8 +28,11 @@ namespace PlanarGraph.Collections
 
         #region
 
-        private bool IsSorted(IList<T> list)
+        public override bool IsSorted(IEnumerable<T> collection)
         {
+            //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
+            List<T> list = collection.ToList();
+            //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             return list.Count < 2 ||
                    Enumerable.Range(0, list.Count - 1)
                        .All(i => Comparer.Compare(list[i], list[i + 1]) <= 0);
@@ -36,6 +40,7 @@ namespace PlanarGraph.Collections
 
         public IEnumerable<T> Intersect(IEnumerable<T> array)
         {
+            //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             var stackListQueue = new StackListQueue<T>();
             var arrays = new StackListQueue<List<T>>(this) {array.ToList()};
             foreach (var arr in arrays.Where(arr => !IsSorted(arr)))
@@ -55,11 +60,13 @@ namespace PlanarGraph.Collections
                 else if (value < 0) indexes[0]++;
                 else indexes[1]++;
             }
+            //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             return stackListQueue;
         }
 
         public IEnumerable<T> Except(IEnumerable<T> array)
         {
+            //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             var stackListQueue = new StackListQueue<T>();
             var arrays = new StackListQueue<List<T>>(this) {array.ToList()};
             foreach (var arr in arrays.Where(arr => !IsSorted(arr)))
@@ -82,11 +89,13 @@ namespace PlanarGraph.Collections
             stackListQueue.AddRange(arrays.Where((a, i) => i == 0).SelectMany((a, i) => indexes[i] < counts[i]
                 ? a.GetRange(indexes[i], counts[i] - indexes[i])
                 : new List<T>()));
+            //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             return stackListQueue;
         }
 
         public IEnumerable<T> Union(IEnumerable<T> array)
         {
+            //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             var stackListQueue = new StackListQueue<T>();
             var arrays = new StackListQueue<List<T>>(this) {array.ToList()};
             foreach (var arr in arrays.Where(arr => !IsSorted(arr)))
@@ -109,14 +118,16 @@ namespace PlanarGraph.Collections
             stackListQueue.AddRange(arrays.SelectMany((a, i) => indexes[i] < counts[i]
                 ? a.GetRange(indexes[i], counts[i] - indexes[i])
                 : new List<T>()));
+            //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             return stackListQueue;
         }
 
 
-        public IEnumerable<T> Distinct()
+        public new IEnumerable<T> Distinct()
         {
-            if (Count == 0) return new List<T>();
+            //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             var stackListQueue = new StackListQueue<T>();
+            if (Count == 0) return stackListQueue;
             var arrays = new StackListQueue<List<T>>(this);
             foreach (var arr in arrays.Where(arr => !IsSorted(arr)))
                 arr.Sort(Comparer);
@@ -136,6 +147,7 @@ namespace PlanarGraph.Collections
                 else stackListQueue.Add(arrays[0][indexes[0]++]);
             }
             stackListQueue.Add(arrays[0][counts[0] - 1]);
+            //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             return stackListQueue;
         }
 

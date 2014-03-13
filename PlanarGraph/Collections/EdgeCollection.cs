@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using PlanarGraph.Comparer;
 using PlanarGraph.Data;
 
@@ -17,6 +18,10 @@ namespace PlanarGraph.Collections
         public EdgeCollection()
         {
             Comparer = EdgeComparer;
+        }
+        public override IEnumerable<int> GetInts(Edge values)
+        {
+            return values.Select(value => value.Id).ToList();
         }
 
         public override bool Equals(object obj)

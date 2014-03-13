@@ -1,5 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
+using PlanarGraph.Parallel;
 
 namespace PlanarGraph.Collections
 {
@@ -118,13 +122,64 @@ namespace PlanarGraph.Collections
             AddRange(value);
         }
 
-
         public bool Contains(IEnumerable<T> collection)
         {
-            return collection.All(Contains);
+            try
+            {
+                //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
+                IEnumerable<IEnumerable<int>> list1 = collection.Select(GetInts);
+                IEnumerable<IEnumerable<int>> list2 = this.Select(GetInts);
+                int[][] matrix;
+                int[] counts;
+                lock (CudafySequencies.Semaphore)
+                {
+                    CudafySequencies.SetSequencies(
+                        list1.Select(item => item.ToArray()).ToArray(),
+                        list2.Select(item => item.ToArray()).ToArray()
+                        );
+                    CudafySequencies.Execute("Compare");
+                    matrix = CudafySequencies.GetMatrix();
+                }
+                lock (CudafyMatrix.Semaphore)
+                {
+                    CudafyMatrix.SetMatrix(matrix);
+                    CudafyMatrix.Execute("IndexOfZero");
+                    counts = CudafyMatrix.GetCounts();
+                }
+                //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
+                return counts.SequenceEqual(Enumerable.Repeat(1, Count));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.ToString());
+                return collection.All(Contains);
+            }
         }
 
-        public virtual bool BelongsTo(StackListQueue<T> collection)
+        public IEnumerable<T> Distinct()
+        {
+            if (Count == 0) return new List<T>();
+            IEnumerable<IEnumerable<int>> list = this.Select(GetInts);
+            int[][] matrix;
+            int[] indexes;
+            lock (CudafySequencies.Semaphore)
+            {
+                int[][] arr = this.Select(GetInts).Select(item => item.ToArray()).ToArray();
+                CudafySequencies.SetSequencies(arr, arr);
+                CudafySequencies.Execute("Compare");
+                matrix = CudafySequencies.GetMatrix();
+            }
+            lock (CudafyMatrix.Semaphore)
+            {
+                CudafyMatrix.SetMatrix(matrix);
+                CudafyMatrix.Execute("IndexOfZero");
+                indexes = CudafyMatrix.GetIndexes();
+            }
+            return indexes.Where((value, index) => value == index)
+                .Select(index => this[index]);
+        }
+
+        public virtual bool BelongsTo(IEnumerable<T> collection)
         {
             if (!this.All(collection.Contains)) return false;
             var forward = new StackListQueue<T>(collection);
@@ -138,17 +193,59 @@ namespace PlanarGraph.Collections
             return false;
         }
 
+        public virtual IEnumerable<int> GetInts(T values)
+        {
+            throw new NotImplementedException();
+        }
+
         public override bool Equals(object obj)
         {
-            var collection = obj as StackListQueue<T>;
-            return collection != null && Count == collection.Count &&
-                   this.SequenceEqual(collection);
+            var collection = obj as SortedStackListQueue<T>;
+            if (collection == null) return false;
+            return this.SequenceEqual(collection);
+        }
+
+        public virtual bool IsSorted(IEnumerable<T> collection)
+        {
+            //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
+            if (collection.Count() < 2) return true;
+            IEnumerable<IEnumerable<int>> list1 = this.Select(GetInts);
+            int[][] matrix;
+            int[] indexes;
+            lock (CudafySequencies.Semaphore)
+            {
+                int[][] arr = list1.Select(item => item.ToArray()).ToArray();
+                CudafySequencies.SetSequencies(arr, arr);
+                CudafySequencies.Execute("Compare");
+                matrix = CudafySequencies.GetMatrix();
+            }
+            lock (CudafyMatrix.Semaphore)
+            {
+                CudafyMatrix.SetMatrix(matrix);
+                CudafyMatrix.Execute("IndexOfNonPositive");
+                indexes = CudafyMatrix.GetIndexes();
+            }
+            //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
+            return Enumerable.Range(0, indexes.Length - 1).All(i => indexes[i] <= indexes[i + 1]);
         }
 
         public override int GetHashCode()
         {
-            return this.Aggregate(0,
-                (current, item) => (current << 1) ^ (current >> (8*sizeof (int) - 1)) ^ item.GetHashCode());
+            try
+            {
+                lock (CudafyMatrix.Semaphore)
+                {
+                    CudafyMatrix.SetMatrix(this.Select(GetInts).Select(item => item.ToArray()).ToArray());
+                    CudafyMatrix.ExecuteHash();
+                    return CudafyMatrix.GetHash();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.ToString());
+                return this.Aggregate(0,
+                    (current, item) => (current << 1) ^ (current >> (8*sizeof (int) - 1)) ^ item.GetHashCode());
+            }
         }
 
         public override string ToString()

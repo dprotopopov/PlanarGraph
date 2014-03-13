@@ -66,8 +66,10 @@ namespace PlanarGraph.Algorithm
 
         private BooleanVectorComparer BooleanVectorComparer { get; set; }
 
-        public bool IsPlanar(Graph graph)
+        public bool IsPlanar(Graph graphArgument)
         {
+            if (WorkerLog != null) WorkerLog("Начало алгоритма Мак-Лейна");
+            var graph = new Graph(graphArgument);
             Debug.Assert(
                 graph.Children.All(pair => pair.Value
                     .All(value => graph.Children.ContainsKey(value)
@@ -75,6 +77,7 @@ namespace PlanarGraph.Algorithm
 
             if (WorkerBegin != null) WorkerBegin();
             // Шаг первый - удаляем все листья и узлы степени 2
+            if (WorkerLog != null) WorkerLog("Удаляем все листья и узлы степени 2");
 
             // листья представляют собой дерево и нарисовать его плоскую укладку тривиально.
             graph.RemoveAllTrees();
@@ -87,24 +90,28 @@ namespace PlanarGraph.Algorithm
             // Шаг второй - граф нужно укладывать отдельно по компонентам связности.
             var stackListQueue = new StackListQueue<Graph> {graph.GetAllSubGraphs()};
 
+            if (WorkerLog != null) WorkerLog("Находим все неповторяющиеся пути в графе");
             // Глобальные кэшированные данные
-            Dictionary<KeyValuePair<Vertex, Vertex>, PathCollection> cachedAllGraphPaths =
+            Dictionary<int, PathDictionary> cachedAllGraphPaths =
                 graph.GetAllGraphPaths();
 
             foreach (Graph subGraph in stackListQueue)
             {
+                if (WorkerLog != null) WorkerLog("Проверка связанной компоненты");
                 // листья представляют собой дерево и нарисовать его плоскую укладку тривиально.
                 subGraph.RemoveAllTrees();
                 if (subGraph.Vertices.Count() < 2) continue;
 
-                PathDictionary cachedSubGraphPaths =
+                Dictionary<int, PathDictionary> cachedSubGraphPaths =
                     Graph.GetSubgraphPaths(subGraph.Vertices, cachedAllGraphPaths);
 
+                if (WorkerLog != null) WorkerLog("Находим все циклы в графе");
                 IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
-                Debug.Assert(subGraph.Vertices.Count() ==
-                             circles.SelectMany(circle => circle.ToList()).Distinct().Count());
 
                 if (!circles.Any()) continue; // граф — дерево и нарисовать его плоскую укладку тривиально.
+
+                Debug.Assert(subGraph.Vertices.Count() ==
+                             circles.SelectMany(circle => circle.ToList()).Distinct().Count());
 
                 //     С технической точки зрения проверять, что цикл является простым и тау-циклом нет необходимости, поскольку не
                 //     приведён алгорим позволяющий проверить , что цикл является тау-циклом за количество операций меньшее чем приведение
@@ -121,15 +128,16 @@ namespace PlanarGraph.Algorithm
                 Debug.WriteLine(matrix);
                 Debug.Assert(matrix.Length == subGraph.Count());
                 // отыскание минимума некоторого функционала на множестве базисов подпространства квазициклов
-                // Шаг 1. Приведение матрицы к ортогональному виду
-                lock (CudafyBooleanMatrix.Semaphore)
+                // Шаг 1. Приведение матрицы к каноническому виду
+                if (WorkerLog != null) WorkerLog("Приведение матрицы к каноническому виду");
+                lock (CudafyMatrix.Semaphore)
                 {
                     try
                     {
                         /////////////////////////////////////////////////////
                         // Использование параллельных вычислений CUDA
                         // для приведения матрицы к каноническому виду
-                        CudafyBooleanMatrix.SetBooleanMatrix(
+                        CudafyMatrix.SetMatrix(
                             matrix.Select(
                                 row =>
                                     Enumerable.Range(0, matrix.Length)
@@ -137,11 +145,11 @@ namespace PlanarGraph.Algorithm
                                         .ToArray())
                                 .ToArray());
 
-                        CudafyBooleanMatrix.ExecuteCanonical();
+                        CudafyMatrix.ExecuteCanonical();
 
                         // Удаляем нулевые строки
-                        int[][] booleanMatrix = CudafyBooleanMatrix.GetBooleanMatrix();
-                        matrix = new BooleanMatrix(CudafyBooleanMatrix.GetIndexes()
+                        int[][] booleanMatrix = CudafyMatrix.GetMatrix();
+                        matrix = new BooleanMatrix(CudafyMatrix.GetIndexes()
                             .Select((first, row) => new KeyValuePair<int, int>(row, first))
                             .Where(pair => pair.Value >= 0)
                             .Select(pair => new BooleanVector(Enumerable.Range(0, matrix.Length)
@@ -149,7 +157,7 @@ namespace PlanarGraph.Algorithm
                                     column => booleanMatrix[pair.Key][column] != 0)))
                             .ToList());
 
-                        CudafyBooleanMatrix.SetBooleanMatrix(
+                        CudafyMatrix.SetMatrix(
                             matrix.Select(
                                 row =>
                                     Enumerable.Range(0, matrix.Length)
@@ -159,6 +167,7 @@ namespace PlanarGraph.Algorithm
                     }
                     catch (Exception ex)
                     {
+                        if (WorkerLog != null) WorkerLog(ex.ToString());
                         /////////////////////////////////////////////////////
                         // Приведение матрицы к каноническому виду обычным способом
                         for (int i = matrix.Count; i-- > 0;)
@@ -202,22 +211,22 @@ namespace PlanarGraph.Algorithm
                         /////////////////////////////////////////////////////
                         // Использование параллельных вычислений CUDA
                         // для расчёта целевой функции симплекс-метода
-                        CudafyBooleanMatrix.SetIndexes(Enumerable.Range(0, n).ToArray());
-                        CudafyBooleanMatrix.ExecuteMacLane();
-                        macLane = CudafyBooleanMatrix.GetMacLane();
+                        CudafyMatrix.SetIndexes(Enumerable.Range(0, n).ToArray());
+                        CudafyMatrix.ExecuteMacLane();
+                        macLane = CudafyMatrix.GetMacLane();
                     }
                     catch (Exception ex)
                     {
+                        if (WorkerLog != null) WorkerLog(ex.ToString());
                         ///////////////////////////////////////////////////
                         // Вычисление целевой функции обычным методом
                         macLane = matrix.MacLane;
                     }
                     Debug.WriteLine("macLane = " + macLane);
-                    int k = 1;
-                    while ((n >> k) != 0) k++;
+                    int k = Math.Min(3, Math.Max(2, (int) Math.Log(n*Math.Log(n))));
                     k = Math.Min(n, k);
-                    k = Math.Min(2, k);
-                    for (bool updated = true; k <= n && updated && macLane > 0;)
+                    if (WorkerLog != null) WorkerLog("Начало симплекс-метода");
+                    for (bool updated = true; k <= n && updated && macLane > 0; )
                     {
                         Debug.Assert(matrix.Length == subGraph.Count());
                         List<int> values = Enumerable.Range(0, n).ToList();
@@ -228,7 +237,7 @@ namespace PlanarGraph.Algorithm
                         {
                             int rows = matrix.Count;
                             int columns = matrix.Length;
-                            CudafyBooleanMatrix.SetBooleanMatrix(
+                            CudafyMatrix.SetMatrix(
                                 matrix.Select(
                                     row =>
                                         Enumerable.Range(0, columns)
@@ -249,19 +258,19 @@ namespace PlanarGraph.Algorithm
                                         /////////////////////////////////////////////////////
                                         // Использование параллельных вычислений CUDA
                                         // для расчёта целевой функции симплекс-метода
-                                        CudafyBooleanMatrix.SetIndexes(indexes.ToArray());
-                                        CudafyBooleanMatrix.ExecuteMacLane();
-                                        macLane2 = CudafyBooleanMatrix.GetMacLane();
+                                        CudafyMatrix.SetIndexes(indexes.ToArray());
+                                        CudafyMatrix.ExecuteMacLane();
+                                        macLane2 = CudafyMatrix.GetMacLane();
 #if DEBUG
-                                        CudafyBooleanMatrix.ExecuteUpdate();
-                                        int[][] booleanMatrix = CudafyBooleanMatrix.GetBooleanMatrix();
+                                        CudafyMatrix.ExecuteUpdate();
+                                        int[][] booleanMatrix = CudafyMatrix.GetMatrix();
                                         matrix2 = new BooleanMatrix(Enumerable.Range(0, matrix.Count)
                                             .Select(r => new BooleanVector(Enumerable.Range(0, matrix.Length)
                                                 .Select(
                                                     c => booleanMatrix[r][c] != 0)))
                                             .ToList());
 
-                                        CudafyBooleanMatrix.SetBooleanMatrix(
+                                        CudafyMatrix.SetMatrix(
                                             matrix.Select(
                                                 row =>
                                                     Enumerable.Range(0, matrix.Length)
@@ -271,6 +280,7 @@ namespace PlanarGraph.Algorithm
                                     }
                                     catch (Exception ex)
                                     {
+                                        if (WorkerLog != null) WorkerLog(ex.ToString());
                                         ///////////////////////////////////////////////////
                                         // Вычисление целевой функции обычным методом
                                         Dictionary<int, int> dictionary =
@@ -288,6 +298,7 @@ namespace PlanarGraph.Algorithm
                                     }
                                     if (macLane > macLane2)
                                     {
+                                        if (WorkerLog != null) WorkerLog("Найденое решение улучшилось ( " + macLane + " -> " + macLane2+" )");
                                         Debug.WriteLine("macLane: " + macLane + "->" + macLane2);
                                         values = indexes.ToList();
                                         macLane = macLane2;
@@ -313,15 +324,16 @@ namespace PlanarGraph.Algorithm
                                         : (indexOfIndex[count + 1] - 1));
                             if (count < 0) break;
                         }
+                        if (WorkerLog != null) WorkerLog("Смена начальной точки симплекс-метода");
                         try
                         {
                             /////////////////////////////////////////////////////
                             // Использование параллельных вычислений CUDA
                             // для смены базиса симплекс-метода
-                            CudafyBooleanMatrix.SetIndexes(values.ToArray());
-                            CudafyBooleanMatrix.ExecuteUpdate();
+                            CudafyMatrix.SetIndexes(values.ToArray());
+                            CudafyMatrix.ExecuteUpdate();
 #if DEBUG
-                            int[][] booleanMatrix = CudafyBooleanMatrix.GetBooleanMatrix();
+                            int[][] booleanMatrix = CudafyMatrix.GetMatrix();
                             matrix = new BooleanMatrix(Enumerable.Range(0, matrix.Count)
                                 .Select(r => new BooleanVector(Enumerable.Range(0, matrix.Length)
                                     .Select(
@@ -331,6 +343,7 @@ namespace PlanarGraph.Algorithm
                         }
                         catch (Exception ex)
                         {
+                            if (WorkerLog != null) WorkerLog(ex.ToString());
                             ///////////////////////////////////////////////////
                             // Cмена базиса симплекс-метода обычным методом
                             Dictionary<int, int> dictionary =
@@ -350,13 +363,18 @@ namespace PlanarGraph.Algorithm
                     }
                     if (macLane > 0)
                     {
+                        if (WorkerLog != null) WorkerLog("Не найдено нулевое значение фунции Мак-Лейна");
+                        if (WorkerLog != null) WorkerLog("Граф не планарен");
                         bool result = false;
                         if (WorkerComplite != null) WorkerComplite(result);
                         return result;
                     }
                 }
+                if (WorkerLog != null) WorkerLog("Конец проверки связанной компоненты");
             }
             {
+                if (WorkerLog != null) WorkerLog("Конец алгоритма Мак-Лейна");
+                if (WorkerLog != null) WorkerLog("Граф планарен");
                 bool result = true;
                 if (WorkerComplite != null) WorkerComplite(result);
                 return result;
@@ -365,5 +383,6 @@ namespace PlanarGraph.Algorithm
 
         public WorkerBegin WorkerBegin { get; set; }
         public WorkerComplite WorkerComplite { get; set; }
+        public WorkerLog WorkerLog { get; set; }
     }
 }

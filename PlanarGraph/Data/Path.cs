@@ -1,7 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using PlanarGraph.Collections;
+using PlanarGraph.Parallel;
 
 namespace PlanarGraph.Data
 {
@@ -28,6 +30,73 @@ namespace PlanarGraph.Data
             : base(vertex1)
         {
             Add(vertex2);
+        }
+
+        /// <summary>
+        ///     Если все контактные вершины сегмента S имеют номера вершин какой-то грани Γ,
+        ///     то мы будем говорить, что грань Γ вмещает этот сегмент и обозначать S⊂Γ
+        /// </summary>
+        /// <returns></returns>
+        public bool FromTo(IEnumerable<Vertex> collection)
+        {
+            return FromTo(collection, collection);
+        }
+
+        public bool FromOrTo(IEnumerable<Vertex> collection)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Circle circle)
+        {
+            return BelongsTo(new Graph(circle));
+        }
+
+        public bool BelongsTo(Edge edge)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Path path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Segment segment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Graph graph)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Circle circle)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Edge edge)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Path path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Segment segment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Graph graph)
+        {
+            Dictionary<Vertex, VertexSortedCollection> children = graph.Children;
+            return this.All(children.ContainsKey) &&
+                   Enumerable.Range(0, Count - 1).All(i => children[this[i]].Contains(this[i + 1]));
         }
 
         public override string ToString()
@@ -70,75 +139,46 @@ namespace PlanarGraph.Data
             return !intersect.Any();
         }
 
-        public bool FromTo(IEnumerable<Vertex> collection)
-        {
-            return FromTo(collection, collection);
-        }
-
         public bool FromTo(IEnumerable<Vertex> from, IEnumerable<Vertex> to)
         {
             return from.Contains(this.First()) &&
                    to.Contains(this.Last());
         }
 
-        public bool BelongsTo(Circle circle)
-        {
-            return BelongsTo(new Graph(circle));
-        }
-
-        public bool BelongsTo(Edge edge)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Path path)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Segment segment)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Graph graph)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Circle circle)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Edge edge)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Path path)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Segment segment)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Graph graph)
-        {
-            Dictionary<Vertex, VertexSortedCollection> children = graph.Children;
-            return this.All(children.ContainsKey) &&
-                   Enumerable.Range(0, Count - 1).All(i => children[this[i]].Contains(this[i + 1]));
-        }
-
         public IEnumerable<Path> SplitBy(Graph graph)
         {
-            Debug.Assert(Count>=2);
+            Debug.Assert(Count >= 2);
             var list = new List<Path>();
-            var indexes =
-                new StackListQueue<int>(GetRange(1, Count - 2).Intersect(graph.Vertices).Select(v => IndexOf(v)));
+            StackListQueue<int> indexes;
+            try
+            {
+                IEnumerable<IEnumerable<int>> list1 = graph.Vertices.Select(GetInts);
+                IEnumerable<IEnumerable<int>> list2 = GetRange(1, Count - 2).Select(GetInts);
+                int[][] matrix;
+                lock (CudafySequencies.Semaphore)
+                {
+                    CudafySequencies.SetSequencies(
+                        list1.Select(item => item.ToArray()).ToArray(),
+                        list2.Select(item => item.ToArray()).ToArray()
+                        );
+                    CudafySequencies.Execute("Compare");
+                    matrix = CudafySequencies.GetMatrix();
+                }
+                lock (CudafyMatrix.Semaphore)
+                {
+                    CudafyMatrix.SetMatrix(matrix);
+                    CudafyMatrix.Execute("IndexOfZero");
+                    indexes = new StackListQueue<int>(CudafyMatrix.GetIndexes()
+                        .Where(index => index >= 0)
+                        .Select(index => index + 1));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.ToString());
+                indexes =
+                    new StackListQueue<int>(GetRange(1, Count - 2).Intersect(graph.Vertices).Select(v => IndexOf(v)));
+            }
             indexes.Sort();
             indexes.Prepend(0);
             indexes.Append(Count - 1);
@@ -160,6 +200,7 @@ namespace PlanarGraph.Data
         {
             return path.Count != 1;
         }
+
         public static bool IsNoCircle(Path path)
         {
             return !path.First().Equals(path.Last());
@@ -168,8 +209,36 @@ namespace PlanarGraph.Data
         public IEnumerable<Path> SplitBy(Segment segment)
         {
             var list = new List<Path>();
-            var indexes =
-                new StackListQueue<int>(GetRange(1, Count - 2).Intersect(segment).Select(v => IndexOf(v)));
+            StackListQueue<int> indexes;
+            try
+            {
+                IEnumerable<IEnumerable<int>> list1 = segment.Select(GetInts);
+                IEnumerable<IEnumerable<int>> list2 = GetRange(1, Count - 2).Select(GetInts);
+                int[][] matrix;
+                lock (CudafySequencies.Semaphore)
+                {
+                    CudafySequencies.SetSequencies(
+                        list1.Select(item => item.ToArray()).ToArray(),
+                        list2.Select(item => item.ToArray()).ToArray()
+                        );
+                    CudafySequencies.Execute("Compare");
+                    matrix = CudafySequencies.GetMatrix();
+                }
+                lock (CudafyMatrix.Semaphore)
+                {
+                    CudafyMatrix.SetMatrix(matrix);
+                    CudafyMatrix.Execute("IndexOfZero");
+                    indexes = new StackListQueue<int>(CudafyMatrix.GetIndexes()
+                        .Where(index => index >= 0)
+                        .Select(index => index + 1));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.ToString());
+                indexes = new StackListQueue<int>(GetRange(1, Count - 2).Intersect(segment).Select(v => IndexOf(v)));
+            }
+
             indexes.Sort();
             indexes.Prepend(0);
             indexes.Append(Count - 1);
