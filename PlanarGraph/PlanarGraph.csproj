@@ -93,6 +93,9 @@
     <Compile Include="Algorithm\GammaAlgorithm.cs" />
     <Compile Include="Algorithm\MacLaneAlgorithm.cs" />
     <Compile Include="Algorithm\IPlanarAlgorithm.cs" />
+    <Compile Include="Array\ArrayOfArray.cs" />
+    <Compile Include="Array\OneDimensionalArray.cs" />
+    <Compile Include="Array\TwoDimensionalArray.cs" />
     <Compile Include="Collections\CircleCollection.cs" />
     <Compile Include="Collections\EdgeCollection.cs" />
     <Compile Include="Collections\PathCollection.cs" />
@@ -110,8 +113,9 @@
     <Compile Include="Comparer\PathComparer.cs" />
     <Compile Include="Comparer\SegmentComparer.cs" />
     <Compile Include="Comparer\VertexComparer.cs" />
-    <Compile Include="Parallel\CudafySequencies.cs" />
+    <Compile Include="Parallel\CudafyArray.cs" />
     <Compile Include="Parallel\CudafyMatrix.cs" />
+    <Compile Include="Parallel\CudafySequencies.cs" />
     <Compile Include="Data\Circle.cs" />
     <Compile Include="Data\IElement.cs" />
     <Compile Include="Data\Path.cs" />

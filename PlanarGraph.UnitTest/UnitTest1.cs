@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlanarGraph.Algorithm;
+using PlanarGraph.Array;
 using PlanarGraph.Collections;
 using PlanarGraph.Data;
 using PlanarGraph.GF2;
@@ -318,6 +319,18 @@ namespace PlanarGraph.UnitTest
         }
 
         [TestMethod]
+        public void TestGraphFromText()
+        {
+            for (int i = 0; i < 20; i++)
+            {
+                Graph graph = Graph.Random(16, 20);
+                Console.WriteLine(@"Test #" + i);
+                Console.WriteLine(graph);
+                Assert.IsTrue(graph.Equals(new Graph(graph.ToString())));
+            }
+        }
+
+        [TestMethod]
         public void TestCudafyMacLane()
         {
             var random = new Random();
@@ -352,9 +365,8 @@ namespace PlanarGraph.UnitTest
                 lock (CudafyMatrix.Semaphore)
                 {
                     CudafyMatrix.SetMatrix(
-                        matrix.Select(
-                            row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0).ToArray())
-                            .ToArray());
+                        new ArrayOfArray<int>(matrix.Select(vector => vector.Select(b => b ? 1 : 0).ToArray()).ToArray())
+                            .ToTwoDimensional());
                     CudafyMatrix.SetIndexes(indexes.ToArray());
                     CudafyMatrix.ExecuteMacLane();
                     int macLane2 = CudafyMatrix.GetMacLane();
@@ -372,7 +384,7 @@ namespace PlanarGraph.UnitTest
                         Enumerable.Range(0, rows)
                             .Select(row => string.Join("", Enumerable.Range(0, columns)
                                 .Select(
-                                    column => CudafyMatrix.GetMatrix()[row][column].ToString())
+                                    column => CudafyMatrix.GetMatrix()[row, column].ToString())
                                 .ToList())).ToList()));
                     Console.WriteLine();
 
@@ -404,9 +416,8 @@ namespace PlanarGraph.UnitTest
                 lock (CudafyMatrix.Semaphore)
                 {
                     CudafyMatrix.SetMatrix(
-                        matrix.Select(
-                            row => Enumerable.Range(0, columns).Select(i => (i < row.Count && row[i]) ? 1 : 0).ToArray())
-                            .ToArray());
+                        new ArrayOfArray<int>(matrix.Select(vector => vector.Select(b => b ? 1 : 0).ToArray()).ToArray())
+                            .ToTwoDimensional());
 
                     CudafyMatrix.ExecuteCanonical();
 
@@ -422,7 +433,7 @@ namespace PlanarGraph.UnitTest
                         Enumerable.Range(0, rows)
                             .Select(row => string.Join("", Enumerable.Range(0, columns)
                                 .Select(
-                                    column => CudafyMatrix.GetMatrix()[row][column].ToString())
+                                    column => CudafyMatrix.GetMatrix()[row, column].ToString())
                                 .ToList())).ToList()));
                     Console.WriteLine();
                     Console.WriteLine(string.Join(Environment.NewLine,

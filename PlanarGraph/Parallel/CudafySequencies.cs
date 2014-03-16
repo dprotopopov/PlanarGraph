@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Cudafy;
 using Cudafy.Host;
@@ -8,23 +9,34 @@ using Cudafy.Translator;
 namespace PlanarGraph.Parallel
 {
     /// <summary>
-    ///     Класс обработки множеств последовательностей
+    ///     Класс работы с двумя множествами последовательностей
+    ///     Данный класс реализует модель специализированного вычислительного устройства
+    ///     с фиксированным набором элементарных операций и использует параллельные вычисления CUDA
+    ///     для реализации этой модели
     /// </summary>
     public static class CudafySequencies
     {
+        /// <summary>
+        ///     Семафор для блокирования одновременного доступа к данному статичному классу
+        ///     из разных параллельных процессов
+        ///     Надеюсь CUDAfy тоже заботится о блокировании одновременного доступа к видеокарточке ;)
+        /// </summary>
         public static readonly object Semaphore = new Object();
-        [Cudafy] private static int _counts1;
-        [Cudafy] private static int _counts2;
+
+        #region Регистры класса
+
         [Cudafy] private static int[] _indexes1;
         [Cudafy] private static int[] _indexes2;
         [Cudafy] private static int[] _sequencies1;
         [Cudafy] private static int[] _sequencies2;
-        [Cudafy] private static int[] _matrix;
+        [Cudafy] private static int[,] _matrix;
+
+        #endregion
 
         public static void SetSequencies(int[][] value1, int[][] value2)
         {
-            _counts1 = value1.Length;
-            _counts2 = value2.Length;
+            int counts1 = value1.Length;
+            int counts2 = value2.Length;
             var list1 = new List<int> {0};
             foreach (var value in value1) list1.Add(list1.Last() + value.Length);
             _indexes1 = list1.ToArray();
@@ -33,42 +45,44 @@ namespace PlanarGraph.Parallel
             _indexes2 = list2.ToArray();
             _sequencies1 = value1.SelectMany(seq => seq).ToArray();
             _sequencies2 = value2.SelectMany(seq => seq).ToArray();
+            _matrix = new int[counts1, counts2];
         }
 
-        public static int[][] GetMatrix()
+        public static int[,] GetMatrix()
         {
-            return
-                Enumerable.Range(0, _counts1)
-                    .Select(i => Enumerable.Range(0, _counts2)
-                        .Select(j => _matrix[i*_counts2 + j])
-                        .ToArray())
-                    .ToArray();
+            return _matrix;
         }
 
+        /// <summary>
+        ///     Вызов и исполнение одной элементарной функции по имени функции
+        /// </summary>
+        /// <param name="function"></param>
         public static void Execute(string function)
         {
-            //Debug.WriteLine("Begin {0}::{1}::{2}", typeof (CudafySequencies).Name, MethodBase.GetCurrentMethod().Name,
-            //    function);
+            Debug.Assert(_indexes1.Last() == _sequencies1.Length);
+            Debug.Assert(_indexes2.Last() == _sequencies2.Length);
+
             CudafyModule km = CudafyTranslator.Cudafy();
 
             GPGPU gpu = CudafyHost.GetDevice();
             gpu.LoadModule(km);
 
-            _matrix = new int[_counts1*_counts2];
             // copy the arrays 'a' and 'b' to the GPU
             int[] devIndexes1 = gpu.CopyToDevice(_indexes1);
             int[] devIndexes2 = gpu.CopyToDevice(_indexes2);
             int[] devSequencies1 = gpu.CopyToDevice(_sequencies1);
             int[] devSequencies2 = gpu.CopyToDevice(_sequencies2);
-            int[] devMatrix = gpu.Allocate(_matrix);
+            int[,] devMatrix = gpu.Allocate(_matrix);
 
+            int rows = _matrix.GetLength(0);
+            int columns = _matrix.GetLength(1);
 
-            dim3 gridSize = Math.Min(15, (int) Math.Sqrt(Math.Sqrt(_counts1*_counts2)));
-            dim3 blockSize = Math.Min(15, (int) Math.Sqrt(Math.Sqrt(_counts1*_counts2)));
+            dim3 gridSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
+            dim3 blockSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
 
             gpu.Launch(gridSize, blockSize, function,
-                devSequencies1, devIndexes1, _counts1,
-                devSequencies2, devIndexes2, _counts2,
+                devSequencies1, devIndexes1,
+                devSequencies2, devIndexes2,
                 devMatrix);
 
             // copy the array 'c' back from the GPU to the CPU
@@ -76,93 +90,102 @@ namespace PlanarGraph.Parallel
 
             // free the memory allocated on the GPU
             gpu.FreeAll();
-            //Debug.WriteLine("Begin {0}::{1}::{2}", typeof (CudafySequencies).Name, MethodBase.GetCurrentMethod().Name,
-            //    function);
         }
 
+        /// <summary>
+        ///     Вычисление значения операции сравнения двух последовательностей
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="sequencies1"></param>
+        /// <param name="indexes1"></param>
+        /// <param name="sequencies2"></param>
+        /// <param name="indexes2"></param>
+        /// <param name="matrix"></param>
         [Cudafy]
         public static void Compare(GThread thread,
-            int[] sequencies1, int[] indexes1, int counts1,
-            int[] sequencies2, int[] indexes2, int counts2,
-            int[] matrix)
+            int[] sequencies1, int[] indexes1,
+            int[] sequencies2, int[] indexes2,
+            int[,] matrix)
         {
-            int tid = thread.blockIdx.x;
-            while (tid < counts1*counts2)
+            int rows = matrix.GetLength(0);
+            int columns = matrix.GetLength(1);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows*columns;
+                tid += thread.blockDim.x * thread.gridDim.x)
             {
-                int count1 = tid/counts2;
-                int count2 = tid%counts2;
-                matrix[tid] = (indexes1[count1 + 1] - indexes1[count1]) - (indexes2[count2 + 1] - indexes2[count2]);
-                for (int i = indexes1[count1], j = indexes2[count2];
-                    i < indexes1[count1 + 1] && j < indexes2[count2 + 1] && matrix[tid] == 0;
+                int row = tid/columns;
+                int column = tid%columns;
+                matrix[row, column] = (indexes1[row + 1] - indexes1[row]) - (indexes2[column + 1] - indexes2[column]);
+                for (int i = indexes1[row], j = indexes2[column];
+                    i < indexes1[row + 1] && j < indexes2[column + 1] && matrix[row, column] == 0;
                     i++,j++)
-                    matrix[tid] = (sequencies1[i] - sequencies2[j]);
-                tid += thread.gridDim.x;
+                    matrix[row, column] = (sequencies1[i] - sequencies2[j]);
             }
         }
 
+        /// <summary>
+        ///     Подсчёт количества пар совпадающих элементов из двух последовательностей
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="sequencies1"></param>
+        /// <param name="indexes1"></param>
+        /// <param name="sequencies2"></param>
+        /// <param name="indexes2"></param>
+        /// <param name="matrix"></param>
         [Cudafy]
-        public static void CountIntersect(GThread thread,
-            int[] sequencies1, int[] indexes1, int counts1,
-            int[] sequencies2, int[] indexes2, int counts2,
-            int[] matrix)
+        public static void CountIntersections(GThread thread,
+            int[] sequencies1, int[] indexes1,
+            int[] sequencies2, int[] indexes2,
+            int[,] matrix)
         {
-            int tid = thread.blockIdx.x;
-            while (tid < counts1*counts2)
+            int rows = matrix.GetLength(0);
+            int columns = matrix.GetLength(1);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows*columns;
+                tid += thread.blockDim.x * thread.gridDim.x)
             {
-                int count1 = tid/counts2;
-                int count2 = tid%counts2;
-                matrix[tid] = 0;
-                for (int i = indexes1[count1]; i < indexes1[count1 + 1]; i++)
-                    for (int j = indexes2[count2]; j < indexes2[count2 + 1]; j++)
-                        if (sequencies1[i] == sequencies2[j]) matrix[tid]++;
-                tid += thread.gridDim.x;
+                int row = tid/columns;
+                int column = tid%columns;
+                matrix[row, column] = 0;
+                for (int i = indexes1[row]; i < indexes1[row + 1]; i++)
+                    for (int j = indexes2[column]; j < indexes2[column + 1]; j++)
+                        if (sequencies1[i] == sequencies2[j]) matrix[row, column]++;
             }
         }
 
+        /// <summary>
+        ///     Проверка, что начальная и конечная точка первой последовательности
+        ///     находятся в множестве точек второй последовательности
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="sequencies1"></param>
+        /// <param name="indexes1"></param>
+        /// <param name="sequencies2"></param>
+        /// <param name="indexes2"></param>
+        /// <param name="matrix"></param>
         [Cudafy]
         public static void IsFromTo(GThread thread,
-            int[] sequencies1, int[] indexes1, int counts1,
-            int[] sequencies2, int[] indexes2, int counts2,
-            int[] matrix)
+            int[] sequencies1, int[] indexes1,
+            int[] sequencies2, int[] indexes2,
+            int[,] matrix)
         {
-            int tid = thread.blockIdx.x;
-            while (tid < counts1*counts2)
+            int rows = matrix.GetLength(0);
+            int columns = matrix.GetLength(1);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows*columns;
+                tid += thread.blockDim.x * thread.gridDim.x)
             {
-                int count1 = tid/counts2;
-                int count2 = tid%counts2;
+                int row = tid/columns;
+                int column = tid%columns;
+                matrix[row, column] = 0;
                 int b = 0;
-                matrix[tid] = 0;
-                for (int i = indexes1[count1]; i < indexes1[count1] + 1 && b == 0; i++)
-                    for (int j = indexes2[count2]; j < indexes2[count2 + 1] && b == 0; j++)
+                for (int i = indexes1[row]; i < indexes1[row] + 1 && b == 0; i++)
+                    for (int j = indexes2[column]; j < indexes2[column + 1] && b == 0; j++)
                         if (sequencies1[i] == sequencies2[j])
                             b = 1;
-                for (int i = indexes1[count1 + 1] - 1; i < indexes1[count1 + 1] && b != 0 && matrix[tid] == 0; i++)
-                    for (int j = indexes2[count2]; j < indexes2[count2 + 1] && b != 0 && matrix[tid] == 0; j++)
-                        matrix[tid] = (sequencies1[i] == sequencies2[j]) ? 1 : 0;
-                tid += thread.gridDim.x;
-            }
-        }
-
-        [Cudafy]
-        public static void IsContains(GThread thread,
-            int[] sequencies1, int[] indexes1, int counts1,
-            int[] sequencies2, int[] indexes2, int counts2,
-            int[] matrix)
-        {
-            int tid = thread.blockIdx.x;
-            while (tid < counts1*counts2)
-            {
-                int count1 = tid/counts2;
-                int count2 = tid%counts2;
-                matrix[tid] = 0;
-                for (int j = indexes2[count2]; j < indexes2[count2 + 1] && matrix[tid] == 0; j++)
-                {
-                    int b = 0;
-                    for (int i = indexes1[count1]; i < indexes1[count1 + 1] && b == 0 && matrix[tid] == 0; i++)
-                        b = (sequencies1[i] == sequencies2[j]) ? 1 : 0;
-                    matrix[tid] = (matrix[tid] != 0 && b != 0) ? 1 : 0;
-                }
-                tid += thread.gridDim.x;
+                for (int i = indexes1[row + 1] - 1; i < indexes1[row + 1] && b != 0 && matrix[row, column] == 0; i++)
+                    for (int j = indexes2[column]; j < indexes2[column + 1] && b != 0 && matrix[row, column] == 0; j++)
+                        matrix[row, column] = (sequencies1[i] == sequencies2[j]) ? 1 : 0;
             }
         }
     }

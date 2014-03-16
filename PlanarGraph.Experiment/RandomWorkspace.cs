@@ -1,8 +1,8 @@
 ﻿namespace PlanarGraph.Experiment
 {
-    public class Workspace
+    public class RandomWorkspace
     {
-        public Workspace()
+        public RandomWorkspace()
         {
             MinNumberOfVertixes = 10;
             MinNumberOfSegments = 10;

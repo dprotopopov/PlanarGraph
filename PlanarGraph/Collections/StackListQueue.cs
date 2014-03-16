@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Reflection;
 using PlanarGraph.Parallel;
 
 namespace PlanarGraph.Collections
@@ -129,7 +128,7 @@ namespace PlanarGraph.Collections
                 //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
                 IEnumerable<IEnumerable<int>> list1 = collection.Select(GetInts);
                 IEnumerable<IEnumerable<int>> list2 = this.Select(GetInts);
-                int[][] matrix;
+                int[,] matrix;
                 int[] counts;
                 lock (CudafySequencies.Semaphore)
                 {
@@ -160,7 +159,7 @@ namespace PlanarGraph.Collections
         {
             if (Count == 0) return new List<T>();
             IEnumerable<IEnumerable<int>> list = this.Select(GetInts);
-            int[][] matrix;
+            int[,] matrix;
             int[] indexes;
             lock (CudafySequencies.Semaphore)
             {
@@ -210,34 +209,33 @@ namespace PlanarGraph.Collections
             //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             if (collection.Count() < 2) return true;
             IEnumerable<IEnumerable<int>> list1 = this.Select(GetInts);
-            int[][] matrix;
-            int[] indexes;
+            int[,] matrix;
             lock (CudafySequencies.Semaphore)
             {
-                int[][] arr = list1.Select(item => item.ToArray()).ToArray();
-                CudafySequencies.SetSequencies(arr, arr);
+                int[][] array = list1.Select(item => item.ToArray()).ToArray();
+                CudafySequencies.SetSequencies(array, array);
                 CudafySequencies.Execute("Compare");
                 matrix = CudafySequencies.GetMatrix();
             }
-            lock (CudafyMatrix.Semaphore)
+            lock (CudafyArray.Semaphore)
             {
-                CudafyMatrix.SetMatrix(matrix);
-                CudafyMatrix.Execute("IndexOfNonPositive");
-                indexes = CudafyMatrix.GetIndexes();
+                CudafyArray.SetArray(Enumerable.Range(0, collection.Count()).ToArray());
+                CudafyArray.SetCompare(matrix);
+                CudafyArray.ExecuteSorted();
+                return CudafyArray.GetSorted() != 0;
             }
             //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
-            return Enumerable.Range(0, indexes.Length - 1).All(i => indexes[i] <= indexes[i + 1]);
         }
 
         public override int GetHashCode()
         {
             try
             {
-                lock (CudafyMatrix.Semaphore)
+                lock (CudafyArray.Semaphore)
                 {
-                    CudafyMatrix.SetMatrix(this.Select(GetInts).Select(item => item.ToArray()).ToArray());
-                    CudafyMatrix.ExecuteHash();
-                    return CudafyMatrix.GetHash();
+                    CudafyArray.SetArray(this.Select(item => item.GetHashCode()).ToArray());
+                    CudafyArray.Execute("Hash");
+                    return CudafyArray.GetHash();
                 }
             }
             catch (Exception ex)

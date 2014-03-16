@@ -41,7 +41,7 @@ namespace PlanarGraph.Collections
                 list.Add(path.Select(vertex => vertex.Id));
                 list.Add(path.GetReverse().Select(vertex => vertex.Id));
             }
-            int[][] matrix;
+            int[,] matrix;
             int[] indexes;
             lock (CudafySequencies.Semaphore)
             {

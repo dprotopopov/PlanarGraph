@@ -106,10 +106,10 @@ namespace PlanarGraph.Algorithm
 
             foreach (Context context in queue)
             {
-                if (WorkerLog != null) WorkerLog("Проверка связанной компоненты");
                 while (context.SubGraphQueue.Any())
                 {
                     Graph subGraph = context.SubGraphQueue.Dequeue();
+                    if (WorkerLog != null) WorkerLog("Проверка связанной компоненты " + subGraph);
                     Dictionary<int, PathDictionary> cachedSubGraphPaths =
                         context.CachedSubGraphPathsQueue.Dequeue();
 
@@ -196,7 +196,7 @@ namespace PlanarGraph.Algorithm
                         {
                             while (paths.Any(path => path.Count > 2))
                             {
-                                int[][] matrix;
+                                int[,] matrix;
                                 int[] indexes;
                                 lock (CudafySequencies.Semaphore)
                                 {
@@ -208,7 +208,7 @@ namespace PlanarGraph.Algorithm
                                         context.Builded.Select(segment => segment.Select(vertex => vertex.Id).ToArray())
                                             .ToArray()
                                         );
-                                    CudafySequencies.Execute("CountIntersect");
+                                    CudafySequencies.Execute("CountIntersections");
                                     matrix = CudafySequencies.GetMatrix();
                                 }
                                 lock (CudafyMatrix.Semaphore)
@@ -296,8 +296,9 @@ namespace PlanarGraph.Algorithm
                         Edge edge1;
                         try
                         {
-                            int[][] matrix;
+                            int[,] matrix;
                             int[] counts;
+                            int[] indexes;
                             lock (CudafySequencies.Semaphore)
                             {
                                 CudafySequencies.SetSequencies(
@@ -311,7 +312,7 @@ namespace PlanarGraph.Algorithm
                             {
                                 CudafyMatrix.SetMatrix(matrix);
                                 CudafyMatrix.ExecuteMinCount();
-                                counts = CudafyMatrix.GetCounts();
+                                counts = CudafyMatrix.GetCounts().ToArray();
                                 minCount = CudafyMatrix.GetMinCount();
                             }
                             if (minCount == 0)
@@ -330,8 +331,13 @@ namespace PlanarGraph.Algorithm
                                 if (WorkerComplite != null) WorkerComplite(result);
                                 return result;
                             }
+                            lock (CudafyMatrix.Semaphore)
+                            {
+                                CudafyMatrix.Execute("IndexOfNonZero");
+                                indexes = CudafyMatrix.GetIndexes();
+                            }
                             int pathIndex = counts.ToList().IndexOf(minCount);
-                            int edgeIndex = matrix[pathIndex].ToList().IndexOf(1);
+                            int edgeIndex = indexes[pathIndex];
                             path1 = paths[pathIndex];
                             edge1 = context.Edges[edgeIndex];
                         }
@@ -368,8 +374,8 @@ namespace PlanarGraph.Algorithm
                         paths.Remove(path1);
                         context.Edges.RemoveAt(context.Edges.IndexOf(edge1));
                     }
+                    if (WorkerLog != null) WorkerLog("Конец проверки связанной компоненты");
                 }
-                if (WorkerLog != null) WorkerLog("Конец проверки связанной компоненты");
             }
             {
                 if (WorkerLog != null) WorkerLog("Конец проверки графа");

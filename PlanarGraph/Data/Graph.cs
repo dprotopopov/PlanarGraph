@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.RegularExpressions;
 using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
 using PlanarGraph.GF2;
@@ -21,6 +22,23 @@ namespace PlanarGraph.Data
 
         public Graph()
         {
+        }
+        /// <summary>
+        /// Создание графа из строки
+        /// Строка должна содержать список сегментов, задаваемых в виде пар индексов точек
+        /// Всегда должно выполняться равенство:
+        /// graph.Equals(new Graph(graph.ToString())) == true
+        /// </summary>
+        /// <param name="text"></param>
+        public Graph(string text)
+        {
+            const string segmentPattern = @"\((?<i>\d+),(?<j>\d+)\)";
+            foreach (Match match in Regex.Matches(text, segmentPattern))
+            {
+                int i = Convert.ToInt32(match.Groups["i"].Value);
+                int j = Convert.ToInt32(match.Groups["j"].Value);
+                Add(new Vertex(i),new Vertex(j));
+            }
         }
 
         public Graph(IEnumerable<Segment> segments)
@@ -193,7 +211,7 @@ namespace PlanarGraph.Data
             {
                 IEnumerable<IEnumerable<int>> list1 = collection.Select(GetInts);
                 IEnumerable<IEnumerable<int>> list2 = this.Select(GetInts);
-                int[][] matrix;
+                int[,] matrix;
                 lock (CudafySequencies.Semaphore)
                 {
                     CudafySequencies.SetSequencies(
@@ -343,7 +361,7 @@ namespace PlanarGraph.Data
                                             string.Join(Environment.NewLine, paths2.Select(path => path.ToString())));
                             try
                             {
-                                int[][] matrix;
+                                int[,] matrix;
                                 lock (CudafySequencies.Semaphore)
                                 {
                                     CudafySequencies.SetSequencies(
@@ -356,21 +374,15 @@ namespace PlanarGraph.Data
                                                 path.Select(vertex => vertex.Id).ToArray())
                                             .ToArray()
                                         );
-                                    CudafySequencies.Execute("CountIntersect");
+                                    CudafySequencies.Execute("CountIntersections");
                                     matrix = CudafySequencies.GetMatrix();
                                 }
-                                Debug.WriteLine("matrix:" +
-                                                string.Join(Environment.NewLine,
-                                                    matrix.Select(
-                                                        row =>
-                                                            string.Join(",",
-                                                                row.Select(item => item.ToString())))));
                                 paths.AddRangeExcept(paths1.SelectMany(
                                     (values1, index1) =>
                                         paths2.Select((values2, index2) => new {index1, index2}))
-                                    .Where(p => matrix[p.index1][p.index2] == 1
+                                    .Where(p => matrix[p.index1,p.index2] == 1
                                                 ||
-                                                (matrix[p.index1][p.index2] == 2 &&
+                                                (matrix[p.index1,p.index2] == 2 &&
                                                  paths1[p.index1].First().Equals(paths2[p.index2].Last())))
                                     .Select(p =>
                                         new Path(paths1[p.index1]) {paths2[p.index2].GetRange(1, i2 - 1)}));

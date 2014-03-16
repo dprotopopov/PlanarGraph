@@ -12,14 +12,28 @@ namespace PlanarGraph.Experiment
 {
     public partial class Form1 : Form
     {
+        private readonly MatrixIO _dataGridViewManual = new MatrixIO
+        {
+            ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
+            Dock = DockStyle.Fill,
+            Name = "dataGridViewManual",
+            RowTemplate = {Height = 20},
+            TabIndex = 0
+        };
+
         public Form1()
         {
             InitializeComponent();
-            Workspace = new Workspace();
+            tabPageManual.Controls.Add(_dataGridViewManual);
+            RandomWorkspace = new RandomWorkspace();
             Experiments = new BindingList<Experiment>();
-            propertyGrid1.SelectedObject = Workspace;
-            dataGridView1.RowTemplate = new DataGridViewRow();
-            dataGridView1.DataSource = Experiments;
+            Tasks = new BindingList<Task>();
+            LastTaskIndex = 0;
+            propertyGrid1.SelectedObject = RandomWorkspace;
+            dataGridViewTask.RowTemplate = new DataGridViewRow();
+            dataGridViewTask.DataSource = Tasks;
+            dataGridViewExperiment.RowTemplate = new DataGridViewRow();
+            dataGridViewExperiment.DataSource = Experiments;
             GammaAlgorithm = new GammaAlgorithm
             {
                 WorkerBegin = GammaAlgorithmStartTimer,
@@ -34,12 +48,25 @@ namespace PlanarGraph.Experiment
             };
         }
 
-        void WorkerLog(string text)
+        private GammaAlgorithm GammaAlgorithm { get; set; }
+        private MacLaneAlgorithm MacLaneAlgorithm { get; set; }
+        public RandomWorkspace RandomWorkspace { get; set; }
+        public BindingList<Experiment> Experiments { get; set; }
+        public BindingList<Task> Tasks { get; set; }
+
+        public TimeSpan GammaAlgorithmTotalExecutionTime { get; set; }
+        public DateTime GammaAlgorithmStartTime { get; set; }
+
+        public TimeSpan MacLaneAlgorithmTotalExecutionTime { get; set; }
+        public DateTime MacLaneAlgorithmStartTime { get; set; }
+        private int LastTaskIndex { get; set; }
+
+        private void WorkerLog(string text)
         {
             if (textBox1.InvokeRequired)
             {
                 var d = new WorkerLog(WorkerLog);
-                object[] objects = { text };
+                object[] objects = {text};
                 Invoke(d, objects);
             }
             else
@@ -48,16 +75,6 @@ namespace PlanarGraph.Experiment
                 textBox1.AppendText(Environment.NewLine);
             }
         }
-        private GammaAlgorithm GammaAlgorithm { get; set; }
-        private MacLaneAlgorithm MacLaneAlgorithm { get; set; }
-        public Workspace Workspace { get; set; }
-        public BindingList<Experiment> Experiments { get; set; }
-
-        public TimeSpan GammaAlgorithmTotalExecutionTime { get; set; }
-        public DateTime GammaAlgorithmStartTime { get; set; }
-
-        public TimeSpan MacLaneAlgorithmTotalExecutionTime { get; set; }
-        public DateTime MacLaneAlgorithmStartTime { get; set; }
 
         public void GammaAlgorithmStartTimer()
         {
@@ -81,7 +98,7 @@ namespace PlanarGraph.Experiment
 
         private void runToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            backgroundWorker1.RunWorkerAsync(this);
+            backgroundWorkerRun.RunWorkerAsync(this);
         }
 
         private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
@@ -101,7 +118,7 @@ namespace PlanarGraph.Experiment
 
         private void AddExperiment(Experiment experiment)
         {
-            if (dataGridView1.InvokeRequired)
+            if (dataGridViewExperiment.InvokeRequired)
             {
                 var d = new AddExperimentDeligate(AddExperiment);
                 object[] objects = {experiment};
@@ -110,9 +127,26 @@ namespace PlanarGraph.Experiment
             else
             {
                 Experiments.Add(experiment);
-                dataGridView1.DataSource = null;
-                dataGridView1.DataSource = Experiments;
-                dataGridView1.Refresh();
+                dataGridViewExperiment.DataSource = null;
+                dataGridViewExperiment.DataSource = Experiments;
+                dataGridViewExperiment.Refresh();
+            }
+        }
+
+        private void AddTask(Task task)
+        {
+            if (dataGridViewTask.InvokeRequired)
+            {
+                var d = new AddTaskDeligate(AddTask);
+                object[] objects = {task};
+                Invoke(d, objects);
+            }
+            else
+            {
+                Tasks.Add(task);
+                dataGridViewTask.DataSource = null;
+                dataGridViewTask.DataSource = Tasks;
+                dataGridViewTask.Refresh();
             }
         }
 
@@ -121,35 +155,75 @@ namespace PlanarGraph.Experiment
             Close();
         }
 
-        private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
+        private void backgroundWorkerRun_DoWork(object sender, DoWorkEventArgs e)
         {
             var This = e.Argument as Form1;
-            for (int n = This.Workspace.MinNumberOfVertixes;
-                n <= This.Workspace.MaxNumberOfVertixes;
-                n += This.Workspace.StepNumberOfVertixes)
-                for (int m = This.Workspace.MinNumberOfSegments;
-                    m <= This.Workspace.MaxNumberOfSegments;
-                    m += This.Workspace.StepNumberOfSegments)
+            while (This.LastTaskIndex < This.Tasks.Count)
+            {
+                Task task = This.Tasks[This.LastTaskIndex++];
+                WorkerLog("Эксперимент №" + This.LastTaskIndex);
+                GammaAlgorithmTotalExecutionTime = new TimeSpan(0);
+                MacLaneAlgorithmTotalExecutionTime = new TimeSpan(0);
+                var graph = new Graph(task.Graph);
+                var experiment = new Experiment
                 {
-                    GammaAlgorithmTotalExecutionTime = new TimeSpan(0);
-                    MacLaneAlgorithmTotalExecutionTime = new TimeSpan(0);
-                    var experiment = new Experiment();
-                    var graph = Graph.Random(n, m);
-                    experiment.Graph = graph.ToString();
-                    experiment.NumberOfVertixes = graph.Vertices.Count;
-                    experiment.NumberOfSegments = graph.Count;
-                    experiment.StartDateTime = DateTime.Now;
-                    experiment.IsPlanarByGammaAlgorithm = GammaAlgorithm.IsPlanar(graph);
-                    experiment.IsPlanarByMacLaneAlgorithm = MacLaneAlgorithm.IsPlanar(graph);
-                    experiment.EndDateTime = DateTime.Now;
-                    experiment.ResultsAreEqual = (experiment.IsPlanarByGammaAlgorithm ==
-                                                  experiment.IsPlanarByMacLaneAlgorithm);
-                    experiment.GammaAlgorithmExecutionTime = GammaAlgorithmTotalExecutionTime;
-                    experiment.MacLaneAlgorithmExecutionTime = MacLaneAlgorithmTotalExecutionTime;
-                    This.AddExperiment(experiment);
-                }
+                    Graph = graph.ToString(),
+                    NumberOfVertixes = graph.Vertices.Count,
+                    NumberOfSegments = graph.Count
+                };
+                experiment.StartDateTime = DateTime.Now;
+                experiment.IsPlanarByMacLaneAlgorithm = MacLaneAlgorithm.IsPlanar(graph);
+                experiment.IsPlanarByGammaAlgorithm = GammaAlgorithm.IsPlanar(graph);
+                experiment.EndDateTime = DateTime.Now;
+                experiment.ResultsAreEqual = (experiment.IsPlanarByGammaAlgorithm ==
+                                              experiment.IsPlanarByMacLaneAlgorithm);
+                experiment.GammaAlgorithmExecutionTime = GammaAlgorithmTotalExecutionTime;
+                experiment.MacLaneAlgorithmExecutionTime = MacLaneAlgorithmTotalExecutionTime;
+                This.AddExperiment(experiment);
+            }
+        }
+
+        private void addToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (tabControlEnter.SelectedTab == tabPageRandom)
+                for (int n = RandomWorkspace.MinNumberOfVertixes;
+                    n <= RandomWorkspace.MaxNumberOfVertixes;
+                    n += RandomWorkspace.StepNumberOfVertixes)
+                    for (int m = RandomWorkspace.MinNumberOfSegments;
+                        m <= RandomWorkspace.MaxNumberOfSegments;
+                        m += RandomWorkspace.StepNumberOfSegments)
+                    {
+                        Graph graph = Graph.Random(n, m);
+                        var task = new Task
+                        {
+                            Graph = graph.ToString(),
+                            NumberOfVertixes = graph.Vertices.Count,
+                            NumberOfSegments = graph.Count
+                        };
+                        AddTask(task);
+                    }
+            else if (tabControlEnter.SelectedTab == tabPageManual)
+            {
+                bool[,] matrix = _dataGridViewManual.TheData;
+                int rows = matrix.GetUpperBound(0) + 1;
+                int cols = matrix.GetUpperBound(1) + 1;
+                var graph = new Graph();
+                for (int i = 0; i < rows; i++)
+                    for (int j = 0; j < cols; j++)
+                        if (matrix[i, j])
+                            graph.Add(new Vertex(i), new Vertex(j));
+                var task = new Task
+                {
+                    Graph = graph.ToString(),
+                    NumberOfVertixes = graph.Vertices.Count,
+                    NumberOfSegments = graph.Count
+                };
+                AddTask(task);
+            }
         }
 
         private delegate void AddExperimentDeligate(Experiment experiment);
+
+        private delegate void AddTaskDeligate(Task task);
     }
 }

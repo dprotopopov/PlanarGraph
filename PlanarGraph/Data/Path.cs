@@ -154,7 +154,7 @@ namespace PlanarGraph.Data
             {
                 IEnumerable<IEnumerable<int>> list1 = graph.Vertices.Select(GetInts);
                 IEnumerable<IEnumerable<int>> list2 = GetRange(1, Count - 2).Select(GetInts);
-                int[][] matrix;
+                int[,] matrix;
                 lock (CudafySequencies.Semaphore)
                 {
                     CudafySequencies.SetSequencies(
@@ -214,7 +214,7 @@ namespace PlanarGraph.Data
             {
                 IEnumerable<IEnumerable<int>> list1 = segment.Select(GetInts);
                 IEnumerable<IEnumerable<int>> list2 = GetRange(1, Count - 2).Select(GetInts);
-                int[][] matrix;
+                int[,] matrix;
                 lock (CudafySequencies.Semaphore)
                 {
                     CudafySequencies.SetSequencies(

@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Windows.Forms.VisualStyles;
+using PlanarGraph.Array;
 using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
 using PlanarGraph.Data;
@@ -97,7 +99,7 @@ namespace PlanarGraph.Algorithm
 
             foreach (Graph subGraph in stackListQueue)
             {
-                if (WorkerLog != null) WorkerLog("Проверка связанной компоненты");
+                if (WorkerLog != null) WorkerLog("Проверка связанной компоненты " + subGraph);
                 // листья представляют собой дерево и нарисовать его плоскую укладку тривиально.
                 subGraph.RemoveAllTrees();
                 if (subGraph.Vertices.Count() < 2) continue;
@@ -123,10 +125,9 @@ namespace PlanarGraph.Algorithm
 
                 Debug.WriteLine(string.Join(Environment.NewLine, circles.Select(circle => circle.ToString())));
 
-                var matrix = new BooleanMatrix(circles.Select(subGraph.GetVector));
+                var booleanMatrix = new BooleanMatrix(circles.Select(subGraph.GetVector));
                 Debug.WriteLine("matrix:");
-                Debug.WriteLine(matrix);
-                Debug.Assert(matrix.Length == subGraph.Count());
+                Debug.WriteLine(booleanMatrix);
                 // отыскание минимума некоторого функционала на множестве базисов подпространства квазициклов
                 // Шаг 1. Приведение матрицы к каноническому виду
                 if (WorkerLog != null) WorkerLog("Приведение матрицы к каноническому виду");
@@ -138,112 +139,106 @@ namespace PlanarGraph.Algorithm
                         // Использование параллельных вычислений CUDA
                         // для приведения матрицы к каноническому виду
                         CudafyMatrix.SetMatrix(
-                            matrix.Select(
-                                row =>
-                                    Enumerable.Range(0, matrix.Length)
-                                        .Select(i => (i < row.Count && row[i]) ? 1 : 0)
-                                        .ToArray())
-                                .ToArray());
+                            new ArrayOfArray<int>(
+                                booleanMatrix.Select(vector => vector.Select(b => b ? 1 : 0).ToArray()).ToArray())
+                                .ToTwoDimensional());
 
                         CudafyMatrix.ExecuteCanonical();
+                        CudafyMatrix.Execute("IndexOfNonZero");
 
                         // Удаляем нулевые строки
-                        int[][] booleanMatrix = CudafyMatrix.GetMatrix();
-                        matrix = new BooleanMatrix(CudafyMatrix.GetIndexes()
+                        int[][] arrayOfArray = new TwoDimensionalArray<int>(CudafyMatrix.GetMatrix()).ToArrayOfArray();
+                        booleanMatrix = new BooleanMatrix(CudafyMatrix.GetIndexes()
                             .Select((first, row) => new KeyValuePair<int, int>(row, first))
                             .Where(pair => pair.Value >= 0)
-                            .Select(pair => new BooleanVector(Enumerable.Range(0, matrix.Length)
-                                .Select(
-                                    column => booleanMatrix[pair.Key][column] != 0)))
-                            .ToList());
+                            .Select(pair => arrayOfArray[pair.Key].Select(value => value != 0)));
 
                         CudafyMatrix.SetMatrix(
-                            matrix.Select(
-                                row =>
-                                    Enumerable.Range(0, matrix.Length)
-                                        .Select(i => (i < row.Count && row[i]) ? 1 : 0)
-                                        .ToArray())
-                                .ToArray());
+                            new ArrayOfArray<int>(
+                                booleanMatrix.Select(vector => vector.Select(b => b ? 1 : 0).ToArray()).ToArray())
+                                .ToTwoDimensional());
                     }
                     catch (Exception ex)
                     {
                         if (WorkerLog != null) WorkerLog(ex.ToString());
                         /////////////////////////////////////////////////////
                         // Приведение матрицы к каноническому виду обычным способом
-                        for (int i = matrix.Count; i-- > 0;)
+                        for (int i = booleanMatrix.Count; i-- > 0;)
                         {
-                            BooleanVector vector = matrix.Dequeue();
+                            BooleanVector vector = booleanMatrix.Dequeue();
                             if (vector.IsZero()) continue;
-                            matrix.Enqueue(vector);
+                            booleanMatrix.Enqueue(vector);
                         }
                         //matrix.Sort(BooleanVectorComparer);
-                        for (int i = matrix.Count; i-- > 0;)
+                        for (int i = booleanMatrix.Count; i-- > 0;)
                         {
-                            BooleanVector vector = matrix.Dequeue();
+                            BooleanVector vector = booleanMatrix.Dequeue();
                             int index = vector.IndexOf(true);
-                            for (int j = matrix.Count; j-- > 0;)
+                            for (int j = booleanMatrix.Count; j-- > 0;)
                             {
-                                BooleanVector vector1 = matrix.Dequeue();
+                                BooleanVector vector1 = booleanMatrix.Dequeue();
                                 if (vector1.Count > index && vector1[index])
                                 {
                                     vector1 = BooleanVector.Xor(vector1, vector);
                                 }
                                 if (vector1.IsZero()) continue;
-                                matrix.Enqueue(vector1);
+                                booleanMatrix.Enqueue(vector1);
                             }
-                            matrix.Enqueue(vector);
+                            booleanMatrix.Enqueue(vector);
                         }
                     }
                     // Матрица имеет канонический вид
                     Debug.WriteLine("matrix:");
-                    Debug.WriteLine(matrix);
-                    Debug.Assert(matrix.Select(booleanVector => booleanVector.IndexOf(true)).Distinct().Count() ==
-                                 matrix.Count);
-                    Debug.Assert(matrix.Select(booleanVector => booleanVector.IndexOf(true))
+                    Debug.WriteLine(booleanMatrix);
+                    Debug.Assert(booleanMatrix.Select(vector => vector.IndexOf(true)).Distinct().Count() ==
+                                 booleanMatrix.Count);
+                    Debug.Assert(booleanMatrix.Select(vector => vector.IndexOf(true))
                         .SelectMany(
-                            index => matrix.Where(booleanVector => booleanVector.Count > index && booleanVector[index]))
-                        .Count() == matrix.Count);
+                            index => booleanMatrix.Where(vector => vector.Count > index && vector[index]))
+                        .Count() == booleanMatrix.Count);
                     // Поскольку в колонках содержится по одной единице, то к строке можно прибавить только одну другую строку
-                    int n = matrix.Count;
+                    int n = booleanMatrix.Count;
                     int macLane;
                     try
                     {
                         /////////////////////////////////////////////////////
                         // Использование параллельных вычислений CUDA
                         // для расчёта целевой функции симплекс-метода
+                        Debug.Assert(CudafyMatrix.GetMatrix() != null);
                         CudafyMatrix.SetIndexes(Enumerable.Range(0, n).ToArray());
                         CudafyMatrix.ExecuteMacLane();
                         macLane = CudafyMatrix.GetMacLane();
+#if DEBUG
+                        int[][] arrayOfArray = new TwoDimensionalArray<int>(CudafyMatrix.GetMatrix()).ToArrayOfArray();
+                        Debug.WriteLine(string.Join(Environment.NewLine,arrayOfArray.Select(v => string.Join(",",v.Select(i=>i.ToString())))));
+#endif
                     }
                     catch (Exception ex)
                     {
                         if (WorkerLog != null) WorkerLog(ex.ToString());
                         ///////////////////////////////////////////////////
                         // Вычисление целевой функции обычным методом
-                        macLane = matrix.MacLane;
+                        macLane = booleanMatrix.MacLane;
                     }
                     Debug.WriteLine("macLane = " + macLane);
-                    int k = Math.Min(3, Math.Max(2, (int) Math.Log(n*Math.Log(n))));
+                    Debug.WriteLine("matrix:");
+                    Debug.WriteLine(booleanMatrix);
+                    int k = Math.Min(3, Math.Max(2, (int)Math.Log(n * Math.Log(n))));
                     k = Math.Min(n, k);
                     if (WorkerLog != null) WorkerLog("Начало симплекс-метода");
-                    for (bool updated = true; k <= n && updated && macLane > 0; )
+                    for (bool updated = true; k <= n && updated && macLane > 0;)
                     {
-                        Debug.Assert(matrix.Length == subGraph.Count());
+                        Debug.Assert(booleanMatrix.Length == subGraph.Count());
                         List<int> values = Enumerable.Range(0, n).ToList();
 
                         updated = false;
                         List<int> indexOfIndex = Enumerable.Range(n - k, k).ToList();
                         while (macLane > 0)
                         {
-                            int rows = matrix.Count;
-                            int columns = matrix.Length;
                             CudafyMatrix.SetMatrix(
-                                matrix.Select(
-                                    row =>
-                                        Enumerable.Range(0, columns)
-                                            .Select(i => (i < row.Count && row[i]) ? 1 : 0)
-                                            .ToArray())
-                                    .ToArray());
+                                new ArrayOfArray<int>(
+                                    booleanMatrix.Select(vector => vector.Select(b => b ? 1 : 0).ToArray()).ToArray())
+                                    .ToTwoDimensional());
                             List<int> indexes = values.ToList();
                             foreach (int index in indexOfIndex) indexes[index] = n - 1;
                             while (macLane > 0)
@@ -258,24 +253,23 @@ namespace PlanarGraph.Algorithm
                                         /////////////////////////////////////////////////////
                                         // Использование параллельных вычислений CUDA
                                         // для расчёта целевой функции симплекс-метода
+                                        Debug.Assert(CudafyMatrix.GetMatrix() != null);
                                         CudafyMatrix.SetIndexes(indexes.ToArray());
                                         CudafyMatrix.ExecuteMacLane();
                                         macLane2 = CudafyMatrix.GetMacLane();
 #if DEBUG
                                         CudafyMatrix.ExecuteUpdate();
-                                        int[][] booleanMatrix = CudafyMatrix.GetMatrix();
-                                        matrix2 = new BooleanMatrix(Enumerable.Range(0, matrix.Count)
-                                            .Select(r => new BooleanVector(Enumerable.Range(0, matrix.Length)
-                                                .Select(
-                                                    c => booleanMatrix[r][c] != 0)))
-                                            .ToList());
+                                        int[][] arrayOfArray =
+                                            new TwoDimensionalArray<int>(CudafyMatrix.GetMatrix()).ToArrayOfArray();
+                                        matrix2 =
+                                            new BooleanMatrix(
+                                                arrayOfArray.Select(r => new BooleanVector(r.Select(c => c != 0))));
 
                                         CudafyMatrix.SetMatrix(
-                                            matrix.Select(
-                                                row =>
-                                                    Enumerable.Range(0, matrix.Length)
-                                                        .Select(c => (c < row.Count && row[c]) ? 1 : 0).ToArray())
-                                                .ToArray());
+                                            new ArrayOfArray<int>(
+                                                booleanMatrix.Select(v => v.Select(b => b ? 1 : 0).ToArray())
+                                                    .ToArray())
+                                                .ToTwoDimensional());
 #endif
                                     }
                                     catch (Exception ex)
@@ -292,13 +286,15 @@ namespace PlanarGraph.Algorithm
                                                     dictionary
                                                         .Where(
                                                             pair2 => pair2.Value == pair1.Key && pair2.Key != pair1.Key)
-                                                        .Select(pair => matrix[pair.Key])
-                                                        .Aggregate(matrix[pair1.Key], BooleanVector.Xor)));
+                                                        .Select(pair => booleanMatrix[pair.Key])
+                                                        .Aggregate(booleanMatrix[pair1.Key], BooleanVector.Xor)));
                                         macLane2 = matrix2.MacLane;
                                     }
                                     if (macLane > macLane2)
                                     {
-                                        if (WorkerLog != null) WorkerLog("Найденое решение улучшилось ( " + macLane + " -> " + macLane2+" )");
+                                        if (WorkerLog != null)
+                                            WorkerLog("Найденое решение улучшилось ( " + macLane + " -> " + macLane2 +
+                                                      " )");
                                         Debug.WriteLine("macLane: " + macLane + "->" + macLane2);
                                         values = indexes.ToList();
                                         macLane = macLane2;
@@ -330,15 +326,14 @@ namespace PlanarGraph.Algorithm
                             /////////////////////////////////////////////////////
                             // Использование параллельных вычислений CUDA
                             // для смены базиса симплекс-метода
+                            Debug.Assert(CudafyMatrix.GetMatrix() != null);
                             CudafyMatrix.SetIndexes(values.ToArray());
                             CudafyMatrix.ExecuteUpdate();
 #if DEBUG
-                            int[][] booleanMatrix = CudafyMatrix.GetMatrix();
-                            matrix = new BooleanMatrix(Enumerable.Range(0, matrix.Count)
-                                .Select(r => new BooleanVector(Enumerable.Range(0, matrix.Length)
-                                    .Select(
-                                        c => booleanMatrix[r][c] != 0)))
-                                .ToList());
+                            int[][] arrayOfArray =
+                                new TwoDimensionalArray<int>(CudafyMatrix.GetMatrix()).ToArrayOfArray();
+                            booleanMatrix =
+                                new BooleanMatrix(arrayOfArray.Select(r => new BooleanVector(r.Select(c => c != 0))));
 #endif
                         }
                         catch (Exception ex)
@@ -349,17 +344,17 @@ namespace PlanarGraph.Algorithm
                             Dictionary<int, int> dictionary =
                                 values.Select((item, value) => new KeyValuePair<int, int>(value, item))
                                     .ToDictionary(pair => pair.Key, pair => pair.Value);
-                            matrix = new BooleanMatrix(
+                            booleanMatrix = new BooleanMatrix(
                                 dictionary.Select(
                                     pair1 =>
                                         dictionary
                                             .Where(pair2 => pair2.Value == pair1.Key && pair2.Key != pair1.Key)
-                                            .Select(pair => matrix[pair.Key])
-                                            .Aggregate(matrix[pair1.Key], BooleanVector.Xor)));
+                                            .Select(pair => booleanMatrix[pair.Key])
+                                            .Aggregate(booleanMatrix[pair1.Key], BooleanVector.Xor)));
                         }
                         Debug.WriteLine(string.Join(",", values.Select(item => item.ToString())));
                         Debug.WriteLine("matrix:");
-                        Debug.WriteLine(matrix);
+                        Debug.WriteLine(booleanMatrix);
                     }
                     if (macLane > 0)
                     {
