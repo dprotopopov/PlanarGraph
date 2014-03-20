@@ -3,7 +3,7 @@ using PlanarGraph.Worker;
 
 namespace PlanarGraph.Algorithm
 {
-    public interface IPlanarAlgorithm: IWorker
+    public interface IPlanarAlgorithm : IWorker
     {
         bool IsPlanar(Graph graph);
     }

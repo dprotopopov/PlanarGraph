@@ -4,12 +4,12 @@
     {
         public RandomWorkspace()
         {
-            MinNumberOfVertixes = 10;
-            MinNumberOfSegments = 10;
-            MaxNumberOfVertixes = 20;
-            MaxNumberOfSegments = 20;
-            StepNumberOfVertixes = 2;
-            StepNumberOfSegments = 2;
+            MinNumberOfVertixes = 8;
+            MinNumberOfSegments = 8;
+            MaxNumberOfVertixes = 16;
+            MaxNumberOfSegments = 16;
+            StepNumberOfVertixes = 4;
+            StepNumberOfSegments = 4;
         }
 
         public int MinNumberOfVertixes { get; set; }

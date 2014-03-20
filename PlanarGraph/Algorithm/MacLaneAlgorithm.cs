@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Windows.Forms.VisualStyles;
 using PlanarGraph.Array;
 using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
@@ -107,13 +106,20 @@ namespace PlanarGraph.Algorithm
                 Dictionary<int, PathDictionary> cachedSubGraphPaths =
                     Graph.GetSubgraphPaths(subGraph.Vertices, cachedAllGraphPaths);
 
-                if (WorkerLog != null) WorkerLog("Находим все циклы в графе");
-                IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
+                if (WorkerLog != null) WorkerLog("Находим ВСЕ циклы в графе (не сортируя и не удаляя дубликаты)");
+                IEnumerable<Circle> circles = cachedSubGraphPaths.Where(pair => pair.Key > 2)
+                    .SelectMany(pair => subGraph.Vertices
+                        .SelectMany(vertex => pair.Value.Where(pair2 => pair2.Key.Key.Equals(pair2.Key.Value))
+                            .SelectMany(
+                                pair2 => pair2.Value.Select(path => new Circle(path.GetRange(0, path.Count - 1))))));
 
-                if (!circles.Any()) continue; // граф — дерево и нарисовать его плоскую укладку тривиально.
+                //if (WorkerLog != null) WorkerLog("Находим все циклы в графе");
+                //IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
 
-                Debug.Assert(subGraph.Vertices.Count() ==
-                             circles.SelectMany(circle => circle.ToList()).Distinct().Count());
+                //if (!circles.Any()) continue; // граф — дерево и нарисовать его плоскую укладку тривиально.
+
+                //Debug.Assert(subGraph.Vertices.Count() ==
+                //             circles.SelectMany(circle => circle.ToList()).Distinct().Count());
 
                 //     С технической точки зрения проверять, что цикл является простым и тау-циклом нет необходимости, поскольку не
                 //     приведён алгорим позволяющий проверить , что цикл является тау-циклом за количество операций меньшее чем приведение
@@ -125,12 +131,14 @@ namespace PlanarGraph.Algorithm
 
                 Debug.WriteLine(string.Join(Environment.NewLine, circles.Select(circle => circle.ToString())));
 
+                if (WorkerLog != null) WorkerLog("Строим матрицу над GF2 из найденных циклов");
                 var booleanMatrix = new BooleanMatrix(circles.Select(subGraph.GetVector));
                 Debug.WriteLine("matrix:");
                 Debug.WriteLine(booleanMatrix);
+
                 // отыскание минимума некоторого функционала на множестве базисов подпространства квазициклов
                 // Шаг 1. Приведение матрицы к каноническому виду
-                if (WorkerLog != null) WorkerLog("Приведение матрицы к каноническому виду");
+                if (WorkerLog != null) WorkerLog("Приводим матрицу к каноническому виду");
                 lock (CudafyMatrix.Semaphore)
                 {
                     try
@@ -144,7 +152,6 @@ namespace PlanarGraph.Algorithm
                                 .ToTwoDimensional());
 
                         CudafyMatrix.ExecuteCanonical();
-                        CudafyMatrix.Execute("IndexOfNonZero");
 
                         // Удаляем нулевые строки
                         int[][] arrayOfArray = new TwoDimensionalArray<int>(CudafyMatrix.GetMatrix()).ToArrayOfArray();
@@ -210,7 +217,8 @@ namespace PlanarGraph.Algorithm
                         macLane = CudafyMatrix.GetMacLane();
 #if DEBUG
                         int[][] arrayOfArray = new TwoDimensionalArray<int>(CudafyMatrix.GetMatrix()).ToArrayOfArray();
-                        Debug.WriteLine(string.Join(Environment.NewLine,arrayOfArray.Select(v => string.Join(",",v.Select(i=>i.ToString())))));
+                        Debug.WriteLine(string.Join(Environment.NewLine,
+                            arrayOfArray.Select(v => string.Join(",", v.Select(i => i.ToString())))));
 #endif
                     }
                     catch (Exception ex)
@@ -223,7 +231,7 @@ namespace PlanarGraph.Algorithm
                     Debug.WriteLine("macLane = " + macLane);
                     Debug.WriteLine("matrix:");
                     Debug.WriteLine(booleanMatrix);
-                    int k = Math.Min(3, Math.Max(2, (int)Math.Log(n * Math.Log(n))));
+                    int k = Math.Min(3, Math.Max(2, (int) Math.Log(n*Math.Log(n))));
                     k = Math.Min(n, k);
                     if (WorkerLog != null) WorkerLog("Начало симплекс-метода");
                     for (bool updated = true; k <= n && updated && macLane > 0;)

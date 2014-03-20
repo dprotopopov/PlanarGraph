@@ -115,9 +115,25 @@ namespace PlanarGraph.Algorithm
 
                     subGraph.RemoveAllTrees();
 
-                    IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
+                    if (WorkerLog != null) WorkerLog("Находим ЛЮБОЙ цикл в графе");
+                    Circle circle = null;
+                    foreach (
+                        var key in subGraph.Vertices.Select(vertex => new KeyValuePair<Vertex, Vertex>(vertex, vertex)))
+                    {
+                        foreach (var pair in cachedSubGraphPaths.Where(pair => pair.Key > 3))
+                        {
+                            if (pair.Value.ContainsKey(key) && pair.Value[key].Any())
+                            {
+                                Path path = pair.Value[key].First();
+                                circle = new Circle(path.GetRange(0, path.Count - 1));
+                                break;
+                            }
+                            if (circle != null) break;
+                        }
+                        if (circle != null) break;
+                    }
 
-                    if (!circles.Any() && !context.Edges.Any())
+                    if (circle == null && !context.Edges.Any())
                     {
                         // граф — дерево и нарисовать его плоскую укладку тривиально.
                         // Поскольку мы ещё не начинали рисовать, то значит всё проверено
@@ -127,14 +143,35 @@ namespace PlanarGraph.Algorithm
                     // Инициализация алгоритма производится так: выбираем любой простой цикл;
                     // и получаем две грани: Γ1 — внешнюю и Γ2 — внутреннюю
 
-                    if (circles.Any() && !context.Edges.Any())
-                        context.Edges.Add(new Edge(circles.First()));
+                    if (circle != null && !context.Edges.Any())
+                        context.Edges.Add(new Edge(circle));
 
-                    if (circles.Any())
+                    if (circle != null)
                     {
-                        context.Edges.Add(new Edge(circles.First()));
+                        context.Edges.Add(new Edge(circle));
                         context.Builded.Add(context.Edges.Last());
                     }
+
+                    //IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
+
+                    //if (!circles.Any() && !context.Edges.Any())
+                    //{
+                    //    // граф — дерево и нарисовать его плоскую укладку тривиально.
+                    //    // Поскольку мы ещё не начинали рисовать, то значит всё проверено
+                    //    continue;
+                    //}
+
+                    //// Инициализация алгоритма производится так: выбираем любой простой цикл;
+                    //// и получаем две грани: Γ1 — внешнюю и Γ2 — внутреннюю
+
+                    //if (circles.Any() && !context.Edges.Any())
+                    //    context.Edges.Add(new Edge(circles.First()));
+
+                    //if (circles.Any())
+                    //{
+                    //    context.Edges.Add(new Edge(circles.First()));
+                    //    context.Builded.Add(context.Edges.Last());
+                    //}
                     // Если циклов нет, то надо проверить, что данное дерево 
                     // можно вписать в уже построенный граф
 
@@ -214,7 +251,7 @@ namespace PlanarGraph.Algorithm
                                 lock (CudafyMatrix.Semaphore)
                                 {
                                     CudafyMatrix.SetMatrix(matrix);
-                                    CudafyMatrix.Execute("IndexOfNonZero");
+                                    CudafyMatrix.ExecuteRepeatZeroIndexOfNonZero();
                                     indexes = CudafyMatrix.GetIndexes();
                                 }
                                 Dictionary<int, int> dictionary = indexes.Select(
@@ -311,29 +348,26 @@ namespace PlanarGraph.Algorithm
                             lock (CudafyMatrix.Semaphore)
                             {
                                 CudafyMatrix.SetMatrix(matrix);
-                                CudafyMatrix.ExecuteMinCount();
+                                CudafyMatrix.ExecuteCountMinInColumn();
                                 counts = CudafyMatrix.GetCounts().ToArray();
                                 minCount = CudafyMatrix.GetMinCount();
-                            }
-                            if (minCount == 0)
-                            {
-                                if (WorkerLog != null) WorkerLog("Существует сегмент S, для которого |Γ(S)| = 0");
-                                if (WorkerLog != null) WorkerLog("Граф не планарен");
-                                Debug.WriteLine("существует сегмент S, для которого |Γ(S)| = 0");
-                                Debug.WriteLine("Graph:" + context.Builded);
-                                Debug.WriteLine("Paths:" +
-                                                string.Join(Environment.NewLine,
-                                                    paths.Select(path => path.ToString())));
-                                Debug.WriteLine("Edges:" +
-                                                string.Join(Environment.NewLine,
-                                                    context.Edges.Select(edge => edge.ToString())));
-                                bool result = false;
-                                if (WorkerComplite != null) WorkerComplite(result);
-                                return result;
-                            }
-                            lock (CudafyMatrix.Semaphore)
-                            {
-                                CudafyMatrix.Execute("IndexOfNonZero");
+                                if (minCount == 0)
+                                {
+                                    if (WorkerLog != null) WorkerLog("Существует сегмент S, для которого |Γ(S)| = 0");
+                                    if (WorkerLog != null) WorkerLog("Граф не планарен");
+                                    Debug.WriteLine("существует сегмент S, для которого |Γ(S)| = 0");
+                                    Debug.WriteLine("Graph:" + context.Builded);
+                                    Debug.WriteLine("Paths:" +
+                                                    string.Join(Environment.NewLine,
+                                                        paths.Select(path => path.ToString())));
+                                    Debug.WriteLine("Edges:" +
+                                                    string.Join(Environment.NewLine,
+                                                        context.Edges.Select(edge => edge.ToString())));
+                                    bool result = false;
+                                    if (WorkerComplite != null) WorkerComplite(result);
+                                    return result;
+                                }
+                                CudafyMatrix.ExecuteRepeatZeroIndexOfNonZero();
                                 indexes = CudafyMatrix.GetIndexes();
                             }
                             int pathIndex = counts.ToList().IndexOf(minCount);

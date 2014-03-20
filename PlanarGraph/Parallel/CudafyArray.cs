@@ -21,14 +21,12 @@ namespace PlanarGraph.Parallel
         /// </summary>
         public static readonly object Semaphore = new Object();
 
-        private static dim3 _gridSize0;
-        private static dim3 _blockSize0;
-        private static dim3 _gridSize1;
-        private static dim3 _blockSize1;
-        private static dim3 _gridSize2;
-        private static dim3 _blockSize2;
-        private static int _m;
-        private static int _m1;
+        private static dim3 _gridSize;
+        private static dim3 _blockSize;
+        private static int _length;
+        private static int _mceiling;
+        private static int _mfloor;
+        private static int _middle;
 
         #region Регистры класса
 
@@ -36,8 +34,8 @@ namespace PlanarGraph.Parallel
         [Cudafy] private static int[] _b;
         [Cudafy] private static int[] _b1;
         [Cudafy] private static int[] _c;
-        [Cudafy] private static int[] _c0;
         [Cudafy] private static int[] _c1;
+        [Cudafy] private static int[] _c2;
         [Cudafy] private static readonly int[] D = new int[1];
         [Cudafy] private static int[,] _compare;
 
@@ -66,8 +64,8 @@ namespace PlanarGraph.Parallel
 
             gpu.CopyToDevice(_a, devA);
 
-            gpu.Launch(1, 1).Split(devA, devB, devC, _m1);
-            gpu.Launch(_gridSize1, _blockSize1, function, devA, devB, devC, devD, 1);
+            gpu.Launch(1, 1).Split(devA, devB, devC, _middle);
+            gpu.Launch(_gridSize, _blockSize, function, devA, devB, devC, devD, 1);
             gpu.Launch(1, 1, function, devA, devB, devC, devD, 2);
 
             gpu.CopyFromDevice(devD, D);
@@ -96,8 +94,8 @@ namespace PlanarGraph.Parallel
             gpu.CopyToDevice(_a, devA);
             gpu.CopyToDevice(_compare, devCompare);
 
-            gpu.Launch(1, 1).Split(devA, devB, devC, _m1);
-            gpu.Launch(_gridSize1, _blockSize1).Sorted(devA, devB, devC, devD, devCompare, 0, direction);
+            gpu.Launch(1, 1).Split(devA, devB, devC, _middle);
+            gpu.Launch(_gridSize, _blockSize).Sorted(devA, devB, devC, devD, devCompare, 0, direction);
             gpu.Launch(1, 1).Sorted(devA, devB, devC, devD, devCompare, 1, direction);
 
             gpu.CopyFromDevice(devD, D);
@@ -136,9 +134,9 @@ namespace PlanarGraph.Parallel
 
             gpu.Launch(1, 1).Split(devA, devB, devC, 0);
 
-            gpu.Launch(_gridSize0, _blockSize0).Merge(devA, devB, devC, devCompare, _m, 0, direction);
+            gpu.Launch(_gridSize, _blockSize).Merge(devA, devB, devC, devCompare, _mceiling, 0, direction);
 
-            gpu.CopyFromDevice((_m & 1) == 0 ? devA : devB, _a);
+            gpu.CopyFromDevice((_mceiling & 1) == 0 ? devA : devB, _a);
 
             // free the memory allocated on the GPU
             gpu.FreeAll();
@@ -201,20 +199,20 @@ namespace PlanarGraph.Parallel
 
             // Шаг второй - разделим все элементы массива между блоками
             // соответственно они будут содержать данные разной длины, 
-            gpu.Launch(1, 1).Split(devA, devB, devC, _m1);
+            gpu.Launch(1, 1).Split(devA, devB, devC, _middle);
 
             // запускаем задачи сортировки блоков
             // при этом применяем битоническую сортировку
             // На выходе - отсортированные массивы размера до 1<<m1
 
-            gpu.Launch(_gridSize1, _blockSize1).Bitonic(devA, devB, devC, devCompare, _m1, direction);
+            gpu.Launch(_gridSize, _blockSize).Bitonic(devA, devB, devC, devCompare, _middle, direction);
 
             // запускаем задачи сортировки данных в двух соседних блоках
             // чередуя соседние блоки
 
-            for (int i = 0; i < (1 << (_m - _m1)) + _m1; i++)
+            for (int i = 0; i < (_length >> _middle) + _middle; i++)
             {
-                gpu.Launch(_gridSize1, _blockSize1).Merge(devA, devB, devC, devCompare, 1, i & 1, direction);
+                gpu.Launch(_gridSize, _blockSize).Merge(devA, devB, devC, devCompare, 1, i & 1, direction);
                 int[] tmp = devA;
                 devA = devB;
                 devB = tmp;
@@ -282,26 +280,35 @@ namespace PlanarGraph.Parallel
 
             int[] devA = gpu.Allocate(_a);
             int[] devB = gpu.Allocate(_b);
-            int[] devC = gpu.Allocate(_c0);
+            int[] devC = gpu.Allocate(_c2);
             int[,] devCompare = gpu.Allocate(_compare);
 
             gpu.CopyToDevice(_a, devA);
             gpu.CopyToDevice(_compare, devCompare);
 
-            gpu.Launch(1, 1).Split(devA, devB, devC, _m);
+            gpu.Launch(1, 1).Split(devA, devB, devC, _mfloor);
 
             // Число n представимо в виде суммы степеней двойки,
             // Поэтому, разбиваем исходные данные на подмассивы с длинами равными слагаемым этой суммы
             // и сортируем каждый подмассив битоническим алгоритмом 
             // В разультате получим равное числу слагаеммых отсортированных массивов длинами равным степеням двойки
 
-            gpu.Launch(_gridSize2, _blockSize2).Bitonic(devA, devB, devC, devCompare, _m, direction);
+            gpu.Launch(_gridSize, _blockSize).Bitonic(devA, devB, devC, devCompare, _mfloor, direction);
 
             // Теперь надо произвести слияние уже отсортированных массивов
 
-            gpu.Launch(_gridSize0, _blockSize0).Merge(devA, devB, devC, devCompare, _m, 0, direction);
+            // запускаем задачи сортировки данных в двух соседних блоках
+            // чередуя соседние блоки
 
-            gpu.CopyFromDevice((_m & 1) == 0 ? devA : devB, _a);
+            for (int i = 0; i < _mceiling; i++)
+            {
+                gpu.Launch(_gridSize, _blockSize).Merge(devA, devB, devC, devCompare, 1, i & 1, direction);
+                int[] tmp = devA;
+                devA = devB;
+                devB = tmp;
+            }
+
+            gpu.CopyFromDevice(devA, _a);
 
             // free the memory allocated on the GPU
             gpu.FreeAll();
@@ -312,15 +319,14 @@ namespace PlanarGraph.Parallel
         {
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < 1;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 c[0] = 0;
                 int length = a.Length;
-                int n = length & ((1 << j) - 1);
-                for (int k = 0; k < j; k++)
-                    c[k + 1] = (n & (1 << k));
+                for (int i = 0; i <= j; i++)
+                    c[i] = length & ((1 << i) - 1);
                 for (int i = 1; i <= (length >> j); i++)
-                    c[j + i] = (n + (i << j));
+                    c[j + i] = c[j] + (i << j);
             }
         }
 
@@ -333,7 +339,7 @@ namespace PlanarGraph.Parallel
                 int step = 1 << j;
                 for (int tid = (thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x) << (j + 1);
                     tid < c.Length;
-                    tid += thread.blockDim.x * thread.gridDim.x << (j + 1))
+                    tid += thread.blockDim.x*thread.gridDim.x << (j + 1))
                 {
                     int index0;
                     int index1;
@@ -371,11 +377,11 @@ namespace PlanarGraph.Parallel
         {
             for (int tid = (thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x);
                 tid < c.Length;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int index = c[tid];
                 int length = c[tid + 1] - c[tid];
-                for (int i = 1; i < k && (1 << i) <= length; i++)
+                for (int i = 0; i < k && (1 << i) < length; i++)
                 {
                     for (int j = i; j >= 0; j--)
                     {
@@ -405,7 +411,7 @@ namespace PlanarGraph.Parallel
                 case 1:
                     for (int tid = (thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x);
                         tid < b.Length;
-                        tid += thread.blockDim.x * thread.gridDim.x)
+                        tid += thread.blockDim.x*thread.gridDim.x)
                     {
                         int index0 = c[tid];
                         int index1 = c[tid + 1];
@@ -417,7 +423,7 @@ namespace PlanarGraph.Parallel
                 case 2:
                     for (int tid = (thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x);
                         tid < 1;
-                        tid += thread.blockDim.x * thread.gridDim.x)
+                        tid += thread.blockDim.x*thread.gridDim.x)
                     {
                         d[0] = b[0];
                         for (int i = 1; i < b.Length; i++)
@@ -433,22 +439,23 @@ namespace PlanarGraph.Parallel
         {
             switch (step)
             {
-                case 1:
+                case 0:
                     for (int tid = (thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x);
                         tid < b.Length;
-                        tid += thread.blockDim.x * thread.gridDim.x)
+                        tid += thread.blockDim.x*thread.gridDim.x)
                     {
                         int index0 = c[tid];
                         int index1 = c[tid + 1];
+                        int total = c[b.Length];
                         b[tid] = 1;
-                        for (int i = index0; i < index1 && b[tid] != 0; i++)
+                        for (int i = index0; i < index1 && (i + 1) < total && b[tid] != 0; i++)
                             b[tid] = (direction*compare[a[i], a[i + 1]] <= 0) ? 1 : 0;
                     }
                     break;
-                case 2:
+                case 1:
                     for (int tid = (thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x);
                         tid < 1;
-                        tid += thread.blockDim.x * thread.gridDim.x)
+                        tid += thread.blockDim.x*thread.gridDim.x)
                     {
                         d[0] = b[0];
                         for (int i = 1; i < b.Length && d[0] != 0; i++)
@@ -460,20 +467,22 @@ namespace PlanarGraph.Parallel
 
         public static void SetArray(int[] array)
         {
-            _m = (int) Math.Ceiling(Math.Log(array.Length, 2));
-            _m1 = _m/3;
+            _length = array.Length;
+            _mceiling = (int) Math.Ceiling(Math.Log(_length, 2));
+            _mfloor = (int) Math.Floor(Math.Log(_length, 2));
+            _middle = (_mceiling + _mfloor)/3;
+            Debug.Assert(Math.Max(1 << (_mceiling - _middle), 1 << _middle)*
+                         Math.Min(1 << (_mceiling - _middle), 1 << _middle) == (1 << _mceiling));
+            Debug.Assert(Math.Max(1 << (_mfloor - _middle), 1 << _middle)*
+                         Math.Min(1 << (_mfloor - _middle), 1 << _middle) == (1 << _mfloor));
             _a = array;
             _b = new int[array.Length];
-            _b1 = new int[(1 << (_m - _m1))];
+            _b1 = new int[(_length >> _middle) + _middle];
             _c = new int[array.Length + 1];
-            _c0 = new int[1 + _m];
-            _c1 = new int[(1 << (_m - _m1)) + _m1];
-            _gridSize0 = Math.Min(15, (int) Math.Pow(array.Length, 0.333333333333));
-            _blockSize0 = Math.Min(15, (int) Math.Pow(array.Length, 0.333333333333));
-            _gridSize1 = Math.Min(15, (int) Math.Pow((1 << (_m - _m1)) + _m1, 0.333333333333));
-            _blockSize1 = Math.Min(15, (int) Math.Pow((1 << (_m - _m1)) + _m1, 0.333333333333));
-            _gridSize2 = Math.Min(15, (int) Math.Pow((1 << (_m - _m)) + _m, 0.333333333333));
-            _blockSize2 = Math.Min(15, (int) Math.Pow((1 << (_m - _m)) + _m, 0.333333333333));
+            _c1 = new int[(_length >> _middle) + _middle + 1];
+            _c2 = new int[_mfloor + 1];
+            _gridSize = Math.Min(15, (int) Math.Pow((_length >> _middle) + (1 << _middle), 0.333333333333));
+            _blockSize = Math.Min(15, (int) Math.Pow((_length >> _middle) + (1 << _middle), 0.333333333333));
         }
 
         public static void SetCompare(int[,] compare)

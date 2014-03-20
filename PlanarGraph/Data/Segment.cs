@@ -15,6 +15,10 @@ namespace PlanarGraph.Data
         {
             Add(vertex2);
         }
+        public override StackListQueue<int> GetInts(Vertex values)
+        {
+            return new StackListQueue<int> { values.Id };
+        }
 
         public Segment(IEnumerable<Vertex> list) : base(list)
         {
@@ -70,6 +74,16 @@ namespace PlanarGraph.Data
             return circle.Contains(this);
         }
 
+        public bool FromTo(IEnumerable<Vertex> collection)
+        {
+            return FromTo(collection, collection);
+        }
+
+        public bool FromOrTo(IEnumerable<Vertex> collection)
+        {
+            return collection.Contains(this.First()) || collection.Contains(this.Last());
+        }
+
         public override bool Equals(object obj)
         {
             var segment = obj as Segment;
@@ -81,11 +95,6 @@ namespace PlanarGraph.Data
             return base.GetHashCode();
         }
 
-        public bool FromTo(IEnumerable<Vertex> collection)
-        {
-            return FromTo(collection, collection);
-        }
-
         public bool FromTo(IEnumerable<Vertex> from, IEnumerable<Vertex> to)
         {
             return from.Contains(this.First()) &&
@@ -95,11 +104,6 @@ namespace PlanarGraph.Data
         public override string ToString()
         {
             return string.Format("({0})", base.ToString());
-        }
-
-        public bool FromOrTo(IEnumerable<Vertex> collection)
-        {
-            return collection.Contains(this.First()) || collection.Contains(this.Last());
         }
     }
 }

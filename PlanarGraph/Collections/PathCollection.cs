@@ -27,20 +27,17 @@ namespace PlanarGraph.Collections
             Comparer = PathComparer;
         }
 
-        public override IEnumerable<int> GetInts(Path values)
+        public override StackListQueue<int> GetInts(Path values)
         {
-            return values.Select(value => value.Id).ToList();
+            return new StackListQueue<int>(values.Select(value => value.Id));
         }
 
         public new IEnumerable<Path> Distinct()
         {
-            if (Count == 0) return new List<Path>();
-            var list = new List<IEnumerable<int>>();
-            foreach (Path path in this)
-            {
-                list.Add(path.Select(vertex => vertex.Id));
-                list.Add(path.GetReverse().Select(vertex => vertex.Id));
-            }
+            if (Count == 0) return new StackListQueue<Path>();
+            var list = new StackListQueue<StackListQueue<int>>();
+            list.AddRange(this.Select(path => new StackListQueue<int>(path.Select(vertex => vertex.Id))));
+            list.AddRange(this.Select(path => new StackListQueue<int>(path.GetReverse().Select(vertex => vertex.Id))));
             int[,] matrix;
             int[] indexes;
             lock (CudafySequencies.Semaphore)
@@ -55,11 +52,11 @@ namespace PlanarGraph.Collections
             lock (CudafyMatrix.Semaphore)
             {
                 CudafyMatrix.SetMatrix(matrix);
-                CudafyMatrix.Execute("IndexOfZero");
+                CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
                 indexes = CudafyMatrix.GetIndexes();
             }
-            return indexes.Where((value, index) => value == index && index%2 == 0)
-                .Select(index => this[index/2]);
+            return indexes.Where((value, index) => value == index && index < Count)
+                .Select(index => this[index]);
         }
     }
 }

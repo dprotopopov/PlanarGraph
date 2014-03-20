@@ -36,9 +36,9 @@ namespace PlanarGraph.Collections
             return base.GetHashCode();
         }
 
-        public override IEnumerable<int> GetInts(Vertex values)
+        public override StackListQueue<int> GetInts(Vertex values)
         {
-            return new List<int> {values.Id};
+            return new StackListQueue<int> {values.Id};
         }
     }
 }

@@ -36,11 +36,9 @@ namespace PlanarGraph.Collections
             base.AddRangeExcept(segments.Where(segment => !segment.First().Equals(segment.Last())));
         }
 
-        public override IEnumerable<int> GetInts(Segment values)
+        public override StackListQueue<int> GetInts(Segment values)
         {
-            List<int> list = values.Select(vertex => vertex.Id).ToList();
-            list.Sort();
-            return list;
+            return new StackListQueue<int>(values.Select(value => value.Id));
         }
 
         public override int GetHashCode()

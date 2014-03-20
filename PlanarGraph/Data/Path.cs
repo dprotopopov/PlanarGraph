@@ -13,7 +13,12 @@ namespace PlanarGraph.Data
     /// </summary>
     public class Path : VertexUnsortedCollection, IElement
     {
-        public Path(IEnumerable<Vertex> list) : base(list)
+        public override StackListQueue<int> GetInts(Vertex values)
+        {
+            return new StackListQueue<int> { values.Id };
+        }
+        public Path(IEnumerable<Vertex> list)
+            : base(list)
         {
         }
 
@@ -125,7 +130,7 @@ namespace PlanarGraph.Data
         /// <returns></returns>
         public static bool IsNonIntersected(Path path1, Path path2)
         {
-            Debug.Assert(new List<Vertex>
+            Debug.Assert(new StackListQueue<Vertex>
             {
                 path1.First(),
                 path1.Last(),
@@ -148,18 +153,16 @@ namespace PlanarGraph.Data
         public IEnumerable<Path> SplitBy(Graph graph)
         {
             Debug.Assert(Count >= 2);
-            var list = new List<Path>();
+            var list = new StackListQueue<Path>();
             StackListQueue<int> indexes;
             try
             {
-                IEnumerable<IEnumerable<int>> list1 = graph.Vertices.Select(GetInts);
-                IEnumerable<IEnumerable<int>> list2 = GetRange(1, Count - 2).Select(GetInts);
                 int[,] matrix;
                 lock (CudafySequencies.Semaphore)
                 {
                     CudafySequencies.SetSequencies(
-                        list1.Select(item => item.ToArray()).ToArray(),
-                        list2.Select(item => item.ToArray()).ToArray()
+                        graph.Vertices.Select(GetInts).Select(item => item.ToArray()).ToArray(),
+                        GetRange(1, Count - 2).Select(GetInts).Select(item => item.ToArray()).ToArray()
                         );
                     CudafySequencies.Execute("Compare");
                     matrix = CudafySequencies.GetMatrix();
@@ -167,7 +170,7 @@ namespace PlanarGraph.Data
                 lock (CudafyMatrix.Semaphore)
                 {
                     CudafyMatrix.SetMatrix(matrix);
-                    CudafyMatrix.Execute("IndexOfZero");
+                    CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
                     indexes = new StackListQueue<int>(CudafyMatrix.GetIndexes()
                         .Where(index => index >= 0)
                         .Select(index => index + 1));
@@ -208,18 +211,16 @@ namespace PlanarGraph.Data
 
         public IEnumerable<Path> SplitBy(Segment segment)
         {
-            var list = new List<Path>();
+            var list = new StackListQueue<Path>();
             StackListQueue<int> indexes;
             try
             {
-                IEnumerable<IEnumerable<int>> list1 = segment.Select(GetInts);
-                IEnumerable<IEnumerable<int>> list2 = GetRange(1, Count - 2).Select(GetInts);
                 int[,] matrix;
                 lock (CudafySequencies.Semaphore)
                 {
                     CudafySequencies.SetSequencies(
-                        list1.Select(item => item.ToArray()).ToArray(),
-                        list2.Select(item => item.ToArray()).ToArray()
+                        segment.Select(GetInts).Select(item => item.ToArray()).ToArray(),
+                        GetRange(1, Count - 2).Select(GetInts).Select(item => item.ToArray()).ToArray()
                         );
                     CudafySequencies.Execute("Compare");
                     matrix = CudafySequencies.GetMatrix();
@@ -227,7 +228,7 @@ namespace PlanarGraph.Data
                 lock (CudafyMatrix.Semaphore)
                 {
                     CudafyMatrix.SetMatrix(matrix);
-                    CudafyMatrix.Execute("IndexOfZero");
+                    CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
                     indexes = new StackListQueue<int>(CudafyMatrix.GetIndexes()
                         .Where(index => index >= 0)
                         .Select(index => index + 1));

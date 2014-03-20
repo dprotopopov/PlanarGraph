@@ -19,9 +19,10 @@ namespace PlanarGraph.Collections
         {
             Comparer = EdgeComparer;
         }
-        public override IEnumerable<int> GetInts(Edge values)
+
+        public override StackListQueue<int> GetInts(Edge values)
         {
-            return values.Select(value => value.Id).ToList();
+            return new StackListQueue<int>(values.Select(value => value.Id));
         }
 
         public override bool Equals(object obj)

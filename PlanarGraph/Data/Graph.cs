@@ -23,11 +23,12 @@ namespace PlanarGraph.Data
         public Graph()
         {
         }
+
         /// <summary>
-        /// Создание графа из строки
-        /// Строка должна содержать список сегментов, задаваемых в виде пар индексов точек
-        /// Всегда должно выполняться равенство:
-        /// graph.Equals(new Graph(graph.ToString())) == true
+        ///     Создание графа из строки
+        ///     Строка должна содержать список сегментов, задаваемых в виде пар индексов точек
+        ///     Всегда должно выполняться равенство:
+        ///     graph.Equals(new Graph(graph.ToString())) == true
         /// </summary>
         /// <param name="text"></param>
         public Graph(string text)
@@ -37,7 +38,7 @@ namespace PlanarGraph.Data
             {
                 int i = Convert.ToInt32(match.Groups["i"].Value);
                 int j = Convert.ToInt32(match.Groups["j"].Value);
-                Add(new Vertex(i),new Vertex(j));
+                Add(new Vertex(i), new Vertex(j));
             }
         }
 
@@ -224,7 +225,7 @@ namespace PlanarGraph.Data
                 lock (CudafyMatrix.Semaphore)
                 {
                     CudafyMatrix.SetMatrix(matrix);
-                    CudafyMatrix.Execute("IndexOfZero");
+                    CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
                     indexes = CudafyMatrix.GetIndexes().ToList();
                 }
             }
@@ -271,7 +272,7 @@ namespace PlanarGraph.Data
             int count = path.Count();
             AddRange(
                 Enumerable.Range(0, count - 1)
-                    .Select((item, index) => new Segment(path[index], path[(index + 1)%count])));
+                    .Select(index => new Segment(path[index], path[(index + 1)%count])));
         }
 
         #endregion
@@ -287,6 +288,11 @@ namespace PlanarGraph.Data
         }
 
         #endregion
+
+        public override StackListQueue<int> GetInts(Segment values)
+        {
+            return new StackListQueue<int>(values.Select(value => value.Id));
+        }
 
         public static Dictionary<int, PathDictionary> GetSubgraphPaths(
             IEnumerable<Vertex> vertices,
@@ -348,7 +354,7 @@ namespace PlanarGraph.Data
 
                             var pair1 = new KeyValuePair<Vertex, Vertex>(vertex1, vertex12);
                             var pair2 = new KeyValuePair<Vertex, Vertex>(vertex12, vertex2);
-                            if (!dictionary1.ContainsKey(pair1) || !dictionary2.ContainsKey(pair2)) continue;
+                            if ((!dictionary1.ContainsKey(pair1)) || (!dictionary2.ContainsKey(pair2))) continue;
                             var pair = new KeyValuePair<Vertex, Vertex>(vertex1, vertex2);
                             PathCollection paths = pathDictionary.ContainsKey(pair)
                                 ? pathDictionary[pair]
@@ -377,15 +383,21 @@ namespace PlanarGraph.Data
                                     CudafySequencies.Execute("CountIntersections");
                                     matrix = CudafySequencies.GetMatrix();
                                 }
+#if DEBUG                      
+                                for (int a = 0; a < matrix.GetLength(0); a++)
+                                    for (int b = 0; b < matrix.GetLength(1); b++)
+                                    {
+                                        Debug.Assert(matrix[a, b] > 0);
+                                    }
+#endif
                                 paths.AddRangeExcept(paths1.SelectMany(
                                     (values1, index1) =>
-                                        paths2.Select((values2, index2) => new {index1, index2}))
-                                    .Where(p => matrix[p.index1,p.index2] == 1
-                                                ||
-                                                (matrix[p.index1,p.index2] == 2 &&
-                                                 paths1[p.index1].First().Equals(paths2[p.index2].Last())))
+                                        paths2.Select((values2, index2) => new {index1, index2, values1, values2}))
+                                    .Where(p => (matrix[p.index1, p.index2] == 1)
+                                                || (i > 3 && matrix[p.index1, p.index2] == 2 &&
+                                                    p.values1.First().Equals(p.values2.Last())))
                                     .Select(p =>
-                                        new Path(paths1[p.index1]) {paths2[p.index2].GetRange(1, i2 - 1)}));
+                                        new Path(p.values1.GetRange(0, i1 - 1)) {p.values2}));
                                 Debug.WriteLine("paths:" +
                                                 string.Join(Environment.NewLine, paths.Select(path => path.ToString())));
                             }
@@ -396,7 +408,7 @@ namespace PlanarGraph.Data
                                     from path2 in paths2
                                     where !path1.GetRange(0, i1 - 1).Intersect(path2.GetRange(0, i2 - 1)).Any()
                                           && !path1.GetRange(1, i1 - 1).Contains(path2.Last())
-                                    select new Path(path1) {path2.GetRange(1, i2 - 1)});
+                                    select new Path(path1.GetRange(0, i1 - 1)) {path2});
                             }
                             paths.ReplaceAll(paths.Distinct());
                             if (!paths.Any()) continue;
@@ -424,7 +436,7 @@ namespace PlanarGraph.Data
         {
             var graph = new Graph();
             var random = new Random(DateTime.Now.GetHashCode());
-            while (graph.Count < m)
+            while (graph.Count < Math.Min(m, n*(n - 1)/2))
             {
                 int i = random.Next()%n;
                 int j = random.Next()%n;
@@ -432,9 +444,12 @@ namespace PlanarGraph.Data
                 graph.Add(new Vertex(i), new Vertex(j));
             }
             Debug.Assert(
-                graph.Children.All(pair => pair.Value
-                    .All(value => graph.Children.ContainsKey(value)
-                                  && graph.Children[value].Contains(pair.Key)))
+                graph.Vertices.All(key => graph.Children[key]
+                    .All(value => graph.Children.ContainsKey(value)))
+                );
+            Debug.Assert(
+                graph.Vertices.All(key => graph.Children[key]
+                    .All(value => graph.Children[value].Contains(key)))
                 );
             return graph;
         }
@@ -491,7 +506,7 @@ namespace PlanarGraph.Data
         /// <returns></returns>
         public IEnumerable<Graph> GetAllSubGraphs()
         {
-            var list = new List<Graph>();
+            var list = new StackListQueue<Graph>();
             List<Vertex> vertexes = Vertices.ToList();
             while (vertexes.Any())
             {

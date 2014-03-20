@@ -33,9 +33,9 @@ namespace PlanarGraph.UnitTest
         public void TestMethod1()
         {
             var graph = new Graph();
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 6})));
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 7})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 6})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 5})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 7})));
             Console.WriteLine(graph.ToString());
             Dictionary<int, PathDictionary> cachedAllGraphPaths =
                 graph.GetAllGraphPaths();
@@ -58,14 +58,14 @@ namespace PlanarGraph.UnitTest
         [TestMethod]
         public void TestVertexCollection()
         {
-            var vertexCollection1 = new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 6});
-            var vertexCollection2 = new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5});
-            var vertexCollection3 = new VertexUnsortedCollection(new List<int> {5, 1, 2, 3, 4});
-            var vertexCollection4 = new VertexUnsortedCollection(new List<int> {5, 4, 3, 2, 1});
-            var circle1 = new Circle(new VertexUnsortedCollection(new List<int> {2, 3, 4, 6, 1}));
-            var circle2 = new Circle(new VertexUnsortedCollection(new List<int> {6, 4, 3, 2, 1}));
-            var segment1 = new Segment(new VertexUnsortedCollection(new List<int> {6, 1}));
-            var segment2 = new Segment(new VertexUnsortedCollection(new List<int> {6, 1}));
+            var vertexCollection1 = new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 6});
+            var vertexCollection2 = new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 5});
+            var vertexCollection3 = new VertexUnsortedCollection(new StackListQueue<int> {5, 1, 2, 3, 4});
+            var vertexCollection4 = new VertexUnsortedCollection(new StackListQueue<int> {5, 4, 3, 2, 1});
+            var circle1 = new Circle(new VertexUnsortedCollection(new StackListQueue<int> {2, 3, 4, 6, 1}));
+            var circle2 = new Circle(new VertexUnsortedCollection(new StackListQueue<int> {6, 4, 3, 2, 1}));
+            var segment1 = new Segment(new VertexUnsortedCollection(new StackListQueue<int> {6, 1}));
+            var segment2 = new Segment(new VertexUnsortedCollection(new StackListQueue<int> {6, 1}));
             var segmentCollection1 = new SegmentCollection {segment1};
             var segmentCollection2 = new SegmentCollection {segment2};
         }
@@ -74,15 +74,15 @@ namespace PlanarGraph.UnitTest
         public void TestRemoveAllTrees()
         {
             var graph = new Graph();
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 2})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 3})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 4})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 2})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 3})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 4})));
             graph.RemoveAllTrees();
             Assert.IsTrue(!graph.Vertices.Any());
             Assert.IsTrue(!graph.Any());
             var graph2 = new Graph();
-            graph2.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5})));
-            graph2.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 3, 5, 2, 4})));
+            graph2.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 5})));
+            graph2.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 3, 5, 2, 4})));
             Assert.AreEqual(5, graph2.Vertices.Count);
             Assert.AreEqual(10, graph2.Count);
         }
@@ -152,9 +152,9 @@ namespace PlanarGraph.UnitTest
         public void TestSplit()
         {
             var graph = new Graph();
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 4, 6, 5})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 4, 6, 5})));
             var path = new Path();
-            path.Add(new VertexUnsortedCollection(new List<int> {1, 6, 4, 5, 1}));
+            path.Add(new VertexUnsortedCollection(new StackListQueue<int> {1, 6, 4, 5, 1}));
             IEnumerable<Path> paths = path.SplitBy(graph);
             Console.WriteLine(string.Join(Environment.NewLine, paths.Select(item => item.ToString())));
             Assert.AreEqual(2, paths.Count());
@@ -164,19 +164,19 @@ namespace PlanarGraph.UnitTest
         public void TestGammaAlgorithm()
         {
             var graph = new Graph();
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 6})));
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 7})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 6})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 5})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 7})));
             Assert.IsTrue(_gammaAlgorithm.IsPlanar(graph));
             var graph2 = new Graph();
-            graph2.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5})));
-            graph2.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 3, 5, 2, 4})));
+            graph2.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 5})));
+            graph2.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 3, 5, 2, 4})));
             Assert.IsFalse(_gammaAlgorithm.IsPlanar(graph2));
             var graph3 = new Graph();
-            graph3.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 4, 2, 6, 3, 5})));
-            graph3.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 6})));
-            graph3.Add(new Circle(new VertexUnsortedCollection(new List<int> {2, 5})));
-            graph3.Add(new Circle(new VertexUnsortedCollection(new List<int> {3, 4})));
+            graph3.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 4, 2, 6, 3, 5})));
+            graph3.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 6})));
+            graph3.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {2, 5})));
+            graph3.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {3, 4})));
             Assert.IsFalse(_gammaAlgorithm.IsPlanar(graph3));
         }
 
@@ -184,26 +184,26 @@ namespace PlanarGraph.UnitTest
         public void TestGammaAlgorithm1()
         {
             var graph = new Graph();
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {15, 6})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {2, 14})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {10, 4})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {14, 8})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {10, 9})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {2, 15})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {4, 7})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {4, 1})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {9, 3})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {13, 14})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {13, 3})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 13})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {5, 4})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {5, 10})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {12, 10})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {5, 13})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {0, 13})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {2, 1})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {8, 10})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {15, 9})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {15, 6})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {2, 14})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {10, 4})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {14, 8})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {10, 9})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {2, 15})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {4, 7})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {4, 1})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {9, 3})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {13, 14})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {13, 3})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 13})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {5, 4})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {5, 10})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {12, 10})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {5, 13})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {0, 13})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {2, 1})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {8, 10})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {15, 9})));
 
             graph.RemoveIntermedians();
             Console.WriteLine(graph);
@@ -234,15 +234,15 @@ namespace PlanarGraph.UnitTest
         public void TestGammaAlgorithm2()
         {
             var graph = new Graph();
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 3})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {2, 4})));
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 5, 6, 7})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 6})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {5, 7})));
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {6, 8, 9, 10})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {6, 9})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {8, 10})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 3})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {2, 4})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 5, 6, 7})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 6})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {5, 7})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {6, 8, 9, 10})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {6, 9})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {8, 10})));
             Dictionary<int, PathDictionary> cachedAllGraphPaths = graph.GetAllGraphPaths();
             IEnumerable<Circle> circles = graph.GetAllGraphCircles(cachedAllGraphPaths);
             IEnumerable<Graph> subGraphs = graph.GetAllSubGraphs();
@@ -262,19 +262,19 @@ namespace PlanarGraph.UnitTest
         public void TestMacLaneAlgorithm()
         {
             var graph = new Graph();
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 6})));
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 7})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 6})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 5})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 7})));
             Assert.IsTrue(_macLaneAlgorithm.IsPlanar(graph));
             var graph2 = new Graph();
-            graph2.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5})));
-            graph2.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 3, 5, 2, 4})));
+            graph2.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 5})));
+            graph2.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 3, 5, 2, 4})));
             Assert.IsFalse(_macLaneAlgorithm.IsPlanar(graph2));
             var graph3 = new Graph();
-            graph3.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 4, 2, 6, 3, 5})));
-            graph3.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 6})));
-            graph3.Add(new Circle(new VertexUnsortedCollection(new List<int> {2, 5})));
-            graph3.Add(new Circle(new VertexUnsortedCollection(new List<int> {3, 4})));
+            graph3.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 4, 2, 6, 3, 5})));
+            graph3.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 6})));
+            graph3.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {2, 5})));
+            graph3.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {3, 4})));
             Assert.IsFalse(_macLaneAlgorithm.IsPlanar(graph3));
         }
 
@@ -282,9 +282,9 @@ namespace PlanarGraph.UnitTest
         public void TestMinPaths()
         {
             var graph = new Graph();
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 6})));
-            graph.Add(new Circle(new VertexUnsortedCollection(new List<int> {1, 2, 3, 4, 5})));
-            graph.Add(new Segment(new VertexUnsortedCollection(new List<int> {1, 7})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 6})));
+            graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 2, 3, 4, 5})));
+            graph.Add(new Segment(new VertexUnsortedCollection(new StackListQueue<int> {1, 7})));
 
             Dictionary<int, PathDictionary> cachedAllGraphPaths = graph.GetAllGraphPaths();
             IEnumerable<Circle> circles = graph.GetAllGraphCircles(cachedAllGraphPaths);

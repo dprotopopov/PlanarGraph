@@ -1,7 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using Cudafy;
 using Cudafy.Host;
 using Cudafy.Translator;
+using PlanarGraph.Collections;
 
 namespace PlanarGraph.Parallel
 {
@@ -25,7 +29,8 @@ namespace PlanarGraph.Parallel
         [Cudafy] private static int[,] _a;
         [Cudafy] private static int[,] _b;
         [Cudafy] private static int[] _c;
-        [Cudafy] private static readonly int[] D = new int[1];
+        [Cudafy] private static int[] _d;
+        [Cudafy] private static readonly int[] E = new int[1];
 
         #endregion
 
@@ -38,6 +43,7 @@ namespace PlanarGraph.Parallel
             _a = value;
             _b = new int[rows, columns];
             _c = new int[rows];
+            _d = new int[columns];
         }
 
         public static int[,] GetMatrix()
@@ -48,6 +54,11 @@ namespace PlanarGraph.Parallel
         public static void SetIndexes(int[] value)
         {
             _c = value;
+        }
+
+        public static void SetRow(int[] value)
+        {
+            _d = value;
         }
 
         #endregion
@@ -71,35 +82,8 @@ namespace PlanarGraph.Parallel
         /// </summary>
         public static void ExecuteMacLane()
         {
-            CudafyModule km = CudafyTranslator.Cudafy();
-
-            GPGPU gpu = CudafyHost.GetDevice();
-            gpu.LoadModule(km);
-
-            int[,] devA = gpu.Allocate(_a);
-            int[,] devB = gpu.Allocate(_b);
-            int[] devC = gpu.Allocate(_c);
-            int[] devD = gpu.Allocate(D);
-
-            gpu.CopyToDevice(_a, devA);
-            gpu.CopyToDevice(_c, devC);
-
-            int rows = _a.GetLength(0);
-            int columns = _a.GetLength(1);
-
-            dim3 gridSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
-            dim3 blockSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
-
-            gpu.Launch(gridSize, blockSize).Push(devA, devB, devC, devD);
-            gpu.Launch(gridSize, blockSize).MultiplyBtoAbyC(devA, devB, devC, devD);
-            gpu.Launch(gridSize, blockSize).SumAbyColumn(devA, devB, devC, devD);
-            gpu.Launch(gridSize, blockSize).CalculateMacLane(devA, devB, devC, devD);
-            gpu.Launch(gridSize, blockSize).SumRowAtoD(devA, devB, devC, devD);
-
-            gpu.CopyFromDevice(devD, D);
-
-            // free the memory allocated on the GPU
-            gpu.FreeAll();
+            Execute(new[] {"Push", "MultiplyBtoAbyC", "CountByColumn", "MacLane", "SumRow"},
+                (int) Register.A + (int) Register.C, (int) Register.E);
         }
 
         /// <summary>
@@ -110,32 +94,8 @@ namespace PlanarGraph.Parallel
         /// </summary>
         public static void ExecuteUpdate()
         {
-            CudafyModule km = CudafyTranslator.Cudafy();
-
-            GPGPU gpu = CudafyHost.GetDevice();
-            gpu.LoadModule(km);
-
-            int[,] devA = gpu.Allocate(_a);
-            int[,] devB = gpu.Allocate(_b);
-            int[] devC = gpu.Allocate(_c);
-            int[] devD = gpu.Allocate(D);
-
-            gpu.CopyToDevice(_a, devA);
-            gpu.CopyToDevice(_c, devC);
-
-            int rows = _a.GetLength(0);
-            int columns = _a.GetLength(1);
-
-            dim3 gridSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
-            dim3 blockSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
-
-            gpu.Launch(gridSize, blockSize).Push(devA, devB, devC, devD);
-            gpu.Launch(gridSize, blockSize).MultiplyBtoAbyC(devA, devB, devC, devD);
-
-            gpu.CopyFromDevice(devA, _a);
-
-            // free the memory allocated on the GPU
-            gpu.FreeAll();
+            Execute(new[] {"Push", "MultiplyBtoAbyC"},
+                (int) Register.A + (int) Register.C, (int) Register.A);
         }
 
         /// <summary>
@@ -149,104 +109,59 @@ namespace PlanarGraph.Parallel
         /// </summary>
         public static void ExecuteCanonical()
         {
-            CudafyModule km = CudafyTranslator.Cudafy();
-
-            GPGPU gpu = CudafyHost.GetDevice();
-            gpu.LoadModule(km);
-
-            int[,] devA = gpu.Allocate(_a);
-            int[,] devB = gpu.Allocate(_b);
-            int[] devC = gpu.Allocate(_c);
-            int[] devD = gpu.Allocate(D);
-
-            gpu.CopyToDevice(_a, devA);
-
-            int rows = _a.GetLength(0);
-            int columns = _a.GetLength(1);
-
-            dim3 gridSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
-            dim3 blockSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
-
-            for (int i = 0; i < rows - 1; i++)
-            {
-                gpu.Launch(gridSize, blockSize).IndexOfNonZero(devA, devB, devC, devD);
-                gpu.Launch(gridSize, blockSize).XorAifC(devA, devB, devC, devD);
-            }
-            gpu.Launch(gridSize, blockSize).IndexOfNonZero(devA, devB, devC, devD);
-            gpu.Launch(gridSize, blockSize).XorAifCne(devA, devB, devC, devD);
-            gpu.Launch(gridSize, blockSize).XorAifCeq(devA, devB, devC, devD);
-
-            gpu.CopyFromDevice(devA, _a);
-            gpu.CopyFromDevice(devC, _c);
-
-            // free the memory allocated on the GPU
-            gpu.FreeAll();
-        }
-
-        /// <summary>
-        ///     Вычисление суммы всех элементов матрицы.
-        ///     Сперва производится суммирование по строкам, затем суммируется полученный столбец.
-        /// </summary>
-        public static void ExecuteCount()
-        {
-            CudafyModule km = CudafyTranslator.Cudafy();
-
-            GPGPU gpu = CudafyHost.GetDevice();
-            gpu.LoadModule(km);
-
-            int[,] devA = gpu.Allocate(_a);
-            int[,] devB = gpu.Allocate(_b);
-            int[] devC = gpu.Allocate(_c);
-            int[] devD = gpu.Allocate(D);
-
-            gpu.CopyToDevice(_a, devA);
-
-            int rows = _a.GetLength(0);
-            int columns = _a.GetLength(1);
-
-            dim3 gridSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
-            dim3 blockSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
-
-            gpu.Launch(gridSize, blockSize).SumToC(devA, devB, devC, devD);
-
-            gpu.CopyFromDevice(devC, _c);
-
-            // free the memory allocated on the GPU
-            gpu.FreeAll();
+            int rows = _c.GetLength(0);
+            var list = new StackListQueue<string>();
+            list.AddRange(new[] {"RepeatZero", "IndexOfNonZero"});
+            if (rows > 1)
+                list.AddRange(Enumerable.Repeat(new[] {"XorAifC", "IndexOfNonZero"}, rows - 1).SelectMany(c => c));
+            list.AddRange(new[] {"XorAifCne", "XorAifCeq", "IndexOfNonZero"});
+            Execute(list, (int) Register.A, (int) Register.A + (int) Register.C);
         }
 
         /// <summary>
         ///     Вычисление минимальной суммы элементов в строках.
         ///     Одновременно вычисляется сумма элементов в строках.
         /// </summary>
-        public static void ExecuteMinCount()
+        public static void ExecuteCountMinInColumn()
         {
-            CudafyModule km = CudafyTranslator.Cudafy();
+            var list = new StackListQueue<string> {"RepeatZero", "IndexOfNonZero", "Count", "MinInColumn"};
+            Execute(list, (int) Register.A, (int) Register.C + (int) Register.E);
+        }
 
-            GPGPU gpu = CudafyHost.GetDevice();
-            gpu.LoadModule(km);
+        public static void ExecuteRepeatZeroIndexOfNonZero()
+        {
+            var list = new StackListQueue<string> {"RepeatZero", "IndexOfNonZero"};
+            Execute(list, (int) Register.A, (int) Register.C);
+        }
 
-            int[,] devA = gpu.Allocate(_a);
-            int[,] devB = gpu.Allocate(_b);
-            int[] devC = gpu.Allocate(_c);
-            int[] devD = gpu.Allocate(D);
+        public static void ExecuteRangeSelectFirstIndexOfNonNegative()
+        {
+            var list = new StackListQueue<string> {"Range", "Select", "FirstIndexOfNonNegative"};
+            Execute(list, (int) Register.A, (int) Register.E);
+        }
 
-            gpu.CopyToDevice(_a, devA);
+        public static void ExecuteRangeSelectFirstIndexOfNonZero()
+        {
+            var list = new StackListQueue<string> {"Range", "Select", "FirstIndexOfNonZero"};
+            Execute(list, (int) Register.A, (int) Register.E);
+        }
 
-            int rows = _a.GetLength(0);
-            int columns = _a.GetLength(1);
+        public static void ExecuteRepeatZeroIndexOfZeroFirstIndexOfNonPositive()
+        {
+            var list = new StackListQueue<string> {"RepeatZero", "IndexOfZero", "FirstIndexOfNonPositive"};
+            Execute(list, (int) Register.A, (int) Register.E);
+        }
 
-            dim3 gridSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
-            dim3 blockSize = Math.Min(15, (int) Math.Pow((double) rows*columns, 0.33333333333));
+        public static void ExecuteRepeatZeroIndexOfZero()
+        {
+            var list = new StackListQueue<string> {"RepeatZero", "IndexOfZero"};
+            Execute(list, (int) Register.A, (int) Register.C);
+        }
 
-            gpu.Launch(gridSize, blockSize).SumToC(devA, devB, devC, devD);
-            gpu.Launch(gridSize, blockSize).MinFromCtoD(devA, devB, devC, devD);
-
-            gpu.CopyFromDevice(devC, _c);
-            gpu.CopyFromDevice(devD, D);
-
-            // free the memory allocated on the GPU
-            gpu.FreeAll();
+        public static void ExecuteRepeatZeroCountOfZeroMinInColumn()
+        {
+            var list = new StackListQueue<string> {"RepeatZero", "CountOfZero", "MinInColumn"};
+            Execute(list, (int) Register.A, (int) Register.E);
         }
 
         /// <summary>
@@ -258,13 +173,13 @@ namespace PlanarGraph.Parallel
         /// <param name="c"></param>
         /// <param name="d"></param>
         [Cudafy]
-        public static void Push(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void Push(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows*columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid/columns;
                 int column = tid%columns;
@@ -281,13 +196,13 @@ namespace PlanarGraph.Parallel
         /// <param name="c"></param>
         /// <param name="d"></param>
         [Cudafy]
-        public static void Pop(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void Pop(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows*columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid/columns;
                 int column = tid%columns;
@@ -305,13 +220,13 @@ namespace PlanarGraph.Parallel
         /// <param name="c"></param>
         /// <param name="d"></param>
         [Cudafy]
-        public static void MultiplyBtoAbyC(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void MultiplyBtoAbyC(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int column = tid;
                 for (int row = 0; row < rows; row++)
@@ -323,6 +238,60 @@ namespace PlanarGraph.Parallel
         }
 
         /// <summary>
+        ///     Очистка регистра _c (столбец)
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <param name="c"></param>
+        /// <param name="d"></param>
+        [Cudafy]
+        public static void RepeatZero(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = c.GetLength(0);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows;
+                tid += thread.blockDim.x*thread.gridDim.x)
+                c[tid] = 0;
+        }
+
+        /// <summary>
+        ///     Заполнение регистра _c (столбец)
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <param name="c"></param>
+        /// <param name="d"></param>
+        [Cudafy]
+        public static void Range(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = c.GetLength(0);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows;
+                tid += thread.blockDim.x*thread.gridDim.x)
+                c[tid] = tid;
+        }
+
+        /// <summary>
+        ///     Заполнение регистра _c (столбец) выборкой из строк регистра _a (матрица)
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <param name="c"></param>
+        /// <param name="d"></param>
+        [Cudafy]
+        public static void Select(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = c.GetLength(0);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows;
+                tid += thread.blockDim.x*thread.gridDim.x)
+                c[tid] = a[tid, c[tid]];
+        }
+
+        /// <summary>
         ///     Суммирование элементов строк регистра _a (матрица) в регистр _c (столбец)
         /// </summary>
         /// <param name="thread"></param>
@@ -331,89 +300,129 @@ namespace PlanarGraph.Parallel
         /// <param name="c"></param>
         /// <param name="d"></param>
         [Cudafy]
-        public static void SumToC(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void Count(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid;
-                c[row] = 0;
-                for (int column = 0; column < columns; column++)
+                int column = c[row];
+                for (c[row] = 0; 0 <= column && column < columns; column++)
                     c[row] += a[row, column];
             }
         }
 
-
         [Cudafy]
-        public static void MinFromCtoD(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void FirstIndexOfNonZero(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
-            int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < 1;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
-                d[0] = c[0];
+                int row = 0;
+                for (e[0] = -1; row < rows && e[0] < 0; row++)
+                    if (c[row] != 0)
+                        e[0] = row;
+            }
+        }
+
+        [Cudafy]
+        public static void FirstIndexOfNonNegative(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = a.GetLength(0);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < 1;
+                tid += thread.blockDim.x*thread.gridDim.x)
+            {
+                int row = 0;
+                for (e[0] = -1; row < rows && e[0] < 0; row++)
+                    if (c[row] >= 0)
+                        e[0] = row;
+            }
+        }
+
+        [Cudafy]
+        public static void FirstIndexOfNonPositive(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = a.GetLength(0);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < 1;
+                tid += thread.blockDim.x*thread.gridDim.x)
+            {
+                int row = 0;
+                for (e[0] = -1; row < rows && e[0] < 0; row++)
+                    if (c[row] <= 0)
+                        e[0] = row;
+            }
+        }
+
+        [Cudafy]
+        public static void MinInColumn(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = a.GetLength(0);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < 1;
+                tid += thread.blockDim.x*thread.gridDim.x)
+            {
+                e[0] = c[0];
                 for (int row = 1; row < rows; row++)
-                    if (d[0] > c[row])
-                        d[0] = c[row];
+                    if (e[0] > c[row])
+                        e[0] = c[row];
             }
         }
 
 
         [Cudafy]
-        public static void SumRowAtoD(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void SumRow(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
-            int rows = a.GetLength(0);
-            int columns = a.GetLength(1);
+            int columns = d.Length;
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < 1;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
-                d[0] = a[0, 0];
+                e[0] = d[0];
                 for (int column = 1; column < columns; column++)
-                    d[0] += a[0, column];
+                    e[0] += d[column];
             }
         }
 
         [Cudafy]
-        public static void SumAbyColumn(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void CountByColumn(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
-                int column = tid;
+                d[tid] = a[0, tid];
                 for (int row = 1; row < rows; row++)
-                    a[0, column] += a[row, column];
-             }
+                    d[tid] += a[row, tid];
+            }
         }
 
         [Cudafy]
-        public static void CalculateMacLane(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void MacLane(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
-            int rows = a.GetLength(0);
-            int columns = a.GetLength(1);
+            int columns = d.Length;
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
-            {
-                int column = tid;
-                a[0, column] = (a[0, column] - 1)*(a[0, column] - 2);
-            }
+                tid += thread.blockDim.x*thread.gridDim.x)
+                d[tid] = (d[tid] - 1)*(d[tid] - 2);
         }
 
         /// <summary>
         ///     Вызов и исполнение одной элементарной функции по имени функции
         /// </summary>
         /// <param name="function"></param>
-        public static void Execute(string function)
+        public static void Execute(IEnumerable<string> functions, int input, int output)
         {
+            Debug.Assert(input != 0 && output != 0);
+
             CudafyModule km = CudafyTranslator.Cudafy();
 
             GPGPU gpu = CudafyHost.GetDevice();
@@ -422,23 +431,141 @@ namespace PlanarGraph.Parallel
             int[,] devA = gpu.Allocate(_a);
             int[,] devB = gpu.Allocate(_b);
             int[] devC = gpu.Allocate(_c);
-            int[] devD = gpu.Allocate(D);
+            int[] devD = gpu.Allocate(_d);
+            int[] devE = gpu.Allocate(E);
 
-            gpu.CopyToDevice(_a, devA);
+            if ((input & (int) Register.A) != 0) gpu.CopyToDevice(_a, devA);
+            if ((input & (int) Register.B) != 0) gpu.CopyToDevice(_b, devB);
+            if ((input & (int) Register.C) != 0) gpu.CopyToDevice(_c, devC);
+            if ((input & (int) Register.D) != 0) gpu.CopyToDevice(_d, devD);
+            if ((input & (int) Register.E) != 0) gpu.CopyToDevice(E, devE);
 
             int rows = _a.GetLength(0);
             int columns = _a.GetLength(1);
 
-            dim3 gridSize = Math.Min(15, (int) Math.Sqrt(Math.Sqrt(rows*columns)));
-            dim3 blockSize = Math.Min(15, (int) Math.Sqrt(Math.Sqrt(rows*columns)));
+            dim3 gridSize = Math.Min(15, (int) Math.Pow(rows*columns, 0.33333333333));
+            dim3 blockSize = Math.Min(15, (int) Math.Pow(rows*columns, 0.33333333333));
 
-            gpu.Launch(gridSize, blockSize, function, devA, devB, devC, devD);
+            foreach (string function in functions)
+                gpu.Launch(gridSize, blockSize, function, devA, devB, devC, devD, devE);
 
-            gpu.CopyFromDevice(devC, _c);
+            if ((output & (int) Register.A) != 0) gpu.CopyFromDevice(devA, _a);
+            if ((output & (int) Register.B) != 0) gpu.CopyFromDevice(devB, _b);
+            if ((output & (int) Register.C) != 0) gpu.CopyFromDevice(devC, _c);
+            if ((output & (int) Register.D) != 0) gpu.CopyFromDevice(devD, _d);
+            if ((output & (int) Register.E) != 0) gpu.CopyFromDevice(devE, E);
 
             // free the memory allocated on the GPU
             gpu.FreeAll();
         }
+
+        #region Подсчёт элемента в строке
+
+        /// <summary>
+        ///     Подсчёт ненулевого элемента в строке регистра _a (матрица)
+        ///     и сохранение результата в регистр _c (столбец)
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <param name="c"></param>
+        /// <param name="d"></param>
+        [Cudafy]
+        public static void CountOfNonZero(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = a.GetLength(0);
+            int columns = a.GetLength(1);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows;
+                tid += thread.blockDim.x*thread.gridDim.x)
+            {
+                int row = tid;
+                int column = c[row];
+                for (c[row] = 0; 0 <= column && column < columns; column++)
+                    if (a[row, column] != 0)
+                        c[row]++;
+            }
+        }
+
+        /// <summary>
+        ///     Подсчёт нулевого элемента в строке регистра _a (матрица)
+        ///     и сохранение результата в регистр _c (столбец)
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <param name="c"></param>
+        /// <param name="d"></param>
+        [Cudafy]
+        public static void CountOfZero(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = a.GetLength(0);
+            int columns = a.GetLength(1);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows;
+                tid += thread.blockDim.x*thread.gridDim.x)
+            {
+                int row = tid;
+                int column = c[row];
+                for (c[row] = 0; 0 <= column && column < columns; column++)
+                    if (a[row, column] == 0)
+                        c[row]++;
+            }
+        }
+
+        /// <summary>
+        ///     Подсчёт неотрицательного элемента в строке регистра _a (матрица)
+        ///     и сохранение результата в регистр _c (столбец)
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <param name="c"></param>
+        /// <param name="d"></param>
+        [Cudafy]
+        public static void CountOfNonNegative(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = a.GetLength(0);
+            int columns = a.GetLength(1);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows;
+                tid += thread.blockDim.x*thread.gridDim.x)
+            {
+                int row = tid;
+                int column = c[row];
+                for (c[row] = 0; 0 <= column && column < columns; column++)
+                    if (a[row, column] >= 0)
+                        c[row]++;
+            }
+        }
+
+        /// <summary>
+        ///     Подсчёт неположительного элемента в строке регистра _a (матрица)
+        ///     и сохранение результата в регистр _c (столбец)
+        /// </summary>
+        /// <param name="thread"></param>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <param name="c"></param>
+        /// <param name="d"></param>
+        [Cudafy]
+        public static void CountOfNonPositive(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
+        {
+            int rows = a.GetLength(0);
+            int columns = a.GetLength(1);
+            for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
+                tid < rows;
+                tid += thread.blockDim.x*thread.gridDim.x)
+            {
+                int row = tid;
+                int column = c[row];
+                for (c[row] = 0; 0 <= column && column < columns; column++)
+                    if (a[row, column] <= 0)
+                        c[row]++;
+            }
+        }
+
+        #endregion
 
         #region Нахождение индекса первого элемента в строке
 
@@ -453,17 +580,17 @@ namespace PlanarGraph.Parallel
         /// <param name="c"></param>
         /// <param name="d"></param>
         [Cudafy]
-        public static void IndexOfNonZero(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void IndexOfNonZero(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid;
-                c[row] = -1;
-                for (int column = 0; column < columns; column++)
+                int column = c[row];
+                for (c[row] = -1; 0 <= column && column < columns; column++)
                     if (a[row, column] != 0)
                     {
                         c[row] = column;
@@ -483,17 +610,17 @@ namespace PlanarGraph.Parallel
         /// <param name="c"></param>
         /// <param name="d"></param>
         [Cudafy]
-        public static void IndexOfZero(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void IndexOfZero(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid;
-                c[row] = -1;
-                for (int column = 0; column < columns; column++)
+                int column = c[row];
+                for (c[row] = -1; 0 <= column && column < columns; column++)
                     if (a[row, column] == 0)
                     {
                         c[row] = column;
@@ -513,17 +640,17 @@ namespace PlanarGraph.Parallel
         /// <param name="c"></param>
         /// <param name="d"></param>
         [Cudafy]
-        public static void IndexOfNonNegative(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void IndexOfNonNegative(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid;
-                c[row] = -1;
-                for (int column = 0; column < columns; column++)
+                int column = c[row];
+                for (c[row] = -1; 0 <= column && column < columns; column++)
                     if (a[row, column] >= 0)
                     {
                         c[row] = column;
@@ -543,17 +670,17 @@ namespace PlanarGraph.Parallel
         /// <param name="c"></param>
         /// <param name="d"></param>
         [Cudafy]
-        public static void IndexOfNonPositive(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void IndexOfNonPositive(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid;
-                c[row] = -1;
-                for (int column = 0; column < columns; column++)
+                int column = c[row];
+                for (c[row] = -1; 0 <= column && column < columns; column++)
                     if (a[row, column] <= 0)
                     {
                         c[row] = column;
@@ -565,6 +692,11 @@ namespace PlanarGraph.Parallel
         #endregion
 
         #region Получение текущих значений в регистрах (getter)
+
+        public static int[] GetRow()
+        {
+            return _d;
+        }
 
         public static int[] GetIndexes()
         {
@@ -578,12 +710,17 @@ namespace PlanarGraph.Parallel
 
         public static int GetMacLane()
         {
-            return D[0];
+            return E[0];
+        }
+
+        public static int GetFirst()
+        {
+            return E[0];
         }
 
         public static int GetMinCount()
         {
-            return D[0];
+            return E[0];
         }
 
         #endregion
@@ -591,13 +728,13 @@ namespace PlanarGraph.Parallel
         #region
 
         [Cudafy]
-        public static void XorAifC(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void XorAifC(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int column = tid;
                 for (int i = 1; i < rows; i++)
@@ -611,13 +748,13 @@ namespace PlanarGraph.Parallel
         }
 
         [Cudafy]
-        public static void XorAifCne(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void XorAifCne(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int column = tid;
                 for (int i = 0; i < rows; i++)
@@ -628,13 +765,13 @@ namespace PlanarGraph.Parallel
         }
 
         [Cudafy]
-        public static void XorAifCeq(GThread thread, int[,] a, int[,] b, int[] c, int[] d)
+        public static void XorAifCeq(GThread thread, int[,] a, int[,] b, int[] c, int[] d, int[] e)
         {
             int rows = a.GetLength(0);
             int columns = a.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int column = tid;
                 for (int i = 0; i < rows; i++)

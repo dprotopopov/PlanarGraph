@@ -8,24 +8,6 @@ namespace PlanarGraph.Collections
 {
     public class StackListQueue<T> : List<T>
     {
-        #region
-
-        public StackListQueue(IEnumerable<T> value)
-        {
-            AddRange(value);
-        }
-
-        public StackListQueue(T value)
-        {
-            Add(value);
-        }
-
-        public StackListQueue()
-        {
-        }
-
-        #endregion
-
         public virtual void Enqueue(T value)
         {
             Add(value);
@@ -69,10 +51,10 @@ namespace PlanarGraph.Collections
             return value;
         }
 
-        public virtual IEnumerable<T> GetReverse()
+        public virtual StackListQueue<T> GetReverse()
         {
             int count = Count - 1;
-            return this.Select((t, i) => this[count - i]);
+            return new StackListQueue<T>(this.Select((t, i) => this[count - i]));
         }
 
         public virtual void Push(T value)
@@ -125,16 +107,13 @@ namespace PlanarGraph.Collections
         {
             try
             {
-                //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
-                IEnumerable<IEnumerable<int>> list1 = collection.Select(GetInts);
-                IEnumerable<IEnumerable<int>> list2 = this.Select(GetInts);
                 int[,] matrix;
-                int[] counts;
+                int first;
                 lock (CudafySequencies.Semaphore)
                 {
                     CudafySequencies.SetSequencies(
-                        list1.Select(item => item.ToArray()).ToArray(),
-                        list2.Select(item => item.ToArray()).ToArray()
+                        collection.Select(GetInts).Select(item => item.ToArray()).ToArray(),
+                        this.Select(GetInts).Select(item => item.ToArray()).ToArray()
                         );
                     CudafySequencies.Execute("Compare");
                     matrix = CudafySequencies.GetMatrix();
@@ -142,11 +121,10 @@ namespace PlanarGraph.Collections
                 lock (CudafyMatrix.Semaphore)
                 {
                     CudafyMatrix.SetMatrix(matrix);
-                    CudafyMatrix.Execute("IndexOfZero");
-                    counts = CudafyMatrix.GetCounts();
+                    CudafyMatrix.ExecuteRepeatZeroIndexOfZeroFirstIndexOfNonPositive();
+                    first = CudafyMatrix.GetFirst();
                 }
-                //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
-                return counts.SequenceEqual(Enumerable.Repeat(1, Count));
+                return first<0;
             }
             catch (Exception ex)
             {
@@ -157,7 +135,7 @@ namespace PlanarGraph.Collections
 
         public IEnumerable<T> Distinct()
         {
-            if (Count == 0) return new List<T>();
+            if (Count == 0) return new StackListQueue<T>();
             IEnumerable<IEnumerable<int>> list = this.Select(GetInts);
             int[,] matrix;
             int[] indexes;
@@ -171,7 +149,7 @@ namespace PlanarGraph.Collections
             lock (CudafyMatrix.Semaphore)
             {
                 CudafyMatrix.SetMatrix(matrix);
-                CudafyMatrix.Execute("IndexOfZero");
+                CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
                 indexes = CudafyMatrix.GetIndexes();
             }
             return indexes.Where((value, index) => value == index)
@@ -192,7 +170,7 @@ namespace PlanarGraph.Collections
             return false;
         }
 
-        public virtual IEnumerable<int> GetInts(T values)
+        public virtual StackListQueue<int> GetInts(T values)
         {
             throw new NotImplementedException();
         }
@@ -204,15 +182,14 @@ namespace PlanarGraph.Collections
             return this.SequenceEqual(collection);
         }
 
-        public virtual bool IsSorted(IEnumerable<T> collection)
+        public virtual bool IsSorted(StackListQueue<T> collection)
         {
-            //Debug.WriteLine("Begin {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
             if (collection.Count() < 2) return true;
-            IEnumerable<IEnumerable<int>> list1 = this.Select(GetInts);
+            var list1 = new StackListQueue<StackListQueue<int>>(collection.Select(t=>collection.GetInts(t)));
             int[,] matrix;
             lock (CudafySequencies.Semaphore)
             {
-                int[][] array = list1.Select(item => item.ToArray()).ToArray();
+                int[][] array = list1.Select(i=>i.ToArray()).ToArray();
                 CudafySequencies.SetSequencies(array, array);
                 CudafySequencies.Execute("Compare");
                 matrix = CudafySequencies.GetMatrix();
@@ -224,7 +201,6 @@ namespace PlanarGraph.Collections
                 CudafyArray.ExecuteSorted();
                 return CudafyArray.GetSorted() != 0;
             }
-            //Debug.WriteLine("End {0}::{1}", GetType().Name, MethodBase.GetCurrentMethod().Name);
         }
 
         public override int GetHashCode()
@@ -255,5 +231,23 @@ namespace PlanarGraph.Collections
         {
             Add(value);
         }
+
+        #region
+
+        public StackListQueue(IEnumerable<T> value)
+        {
+            AddRange(value);
+        }
+
+        public StackListQueue(T value)
+        {
+            Add(value);
+        }
+
+        public StackListQueue()
+        {
+        }
+
+        #endregion
     }
 }

@@ -17,10 +17,11 @@ namespace PlanarGraph.Collections
             return base.Equals(obj);
         }
 
-        public override IEnumerable<int> GetInts(Circle values)
+        public override StackListQueue<int> GetInts(Circle values)
         {
-            return values.Select(value => value.Id).ToList();
+            return new StackListQueue<int>(values.Select(value => value.Id));
         }
+
         public override int GetHashCode()
         {
             return base.GetHashCode();

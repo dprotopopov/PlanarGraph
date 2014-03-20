@@ -1,10 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Cudafy;
 using Cudafy.Host;
 using Cudafy.Translator;
+using PlanarGraph.Collections;
 
 namespace PlanarGraph.Parallel
 {
@@ -37,10 +37,10 @@ namespace PlanarGraph.Parallel
         {
             int counts1 = value1.Length;
             int counts2 = value2.Length;
-            var list1 = new List<int> {0};
+            var list1 = new StackListQueue<int> {0};
             foreach (var value in value1) list1.Add(list1.Last() + value.Length);
             _indexes1 = list1.ToArray();
-            var list2 = new List<int> {0};
+            var list2 = new StackListQueue<int> {0};
             foreach (var value in value2) list2.Add(list2.Last() + value.Length);
             _indexes2 = list2.ToArray();
             _sequencies1 = value1.SelectMany(seq => seq).ToArray();
@@ -111,7 +111,7 @@ namespace PlanarGraph.Parallel
             int columns = matrix.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows*columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid/columns;
                 int column = tid%columns;
@@ -142,7 +142,7 @@ namespace PlanarGraph.Parallel
             int columns = matrix.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows*columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid/columns;
                 int column = tid%columns;
@@ -173,7 +173,7 @@ namespace PlanarGraph.Parallel
             int columns = matrix.GetLength(1);
             for (int tid = thread.blockDim.x*thread.blockIdx.x + thread.threadIdx.x;
                 tid < rows*columns;
-                tid += thread.blockDim.x * thread.gridDim.x)
+                tid += thread.blockDim.x*thread.gridDim.x)
             {
                 int row = tid/columns;
                 int column = tid%columns;

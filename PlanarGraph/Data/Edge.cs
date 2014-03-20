@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using PlanarGraph.Collections;
@@ -15,12 +16,77 @@ namespace PlanarGraph.Data
     {
         private static readonly VertexComparer VertexComparer = new VertexComparer();
 
-        public Edge(IEnumerable<Vertex> list) : base(list)
+        public override StackListQueue<int> GetInts(Vertex values)
+        {
+            return new StackListQueue<int> { values.Id };
+        }
+        public Edge(IEnumerable<Vertex> list)
+            : base(list)
         {
         }
 
         public Edge(Vertex vertex) : base(vertex)
         {
+        }
+
+        public bool BelongsTo(Graph graph)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Circle circle)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Edge edge)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Path path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BelongsTo(Segment segment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Graph graph)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Circle circle)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Edge edge)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Path path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Contains(Segment segment)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool FromTo(IEnumerable<Vertex> collection)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool FromOrTo(IEnumerable<Vertex> collection)
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -30,7 +96,7 @@ namespace PlanarGraph.Data
         public IEnumerable<Edge> Split(Path path)
         {
             Debug.Assert(path.FromTo(this));
-            var list = new List<Edge>();
+            var list = new StackListQueue<Edge>();
             if (path.Count() < 2) return list;
             int index1 = IndexOf(path.First());
             int index2 = IndexOf(path.Last());
@@ -76,7 +142,7 @@ namespace PlanarGraph.Data
             if (obj == null) return false;
             if (Count != edge.Count()) return false;
             if (Count == 0) return true;
-            
+
             var list1 = new SortedStackListQueue<Vertex>(this) {Comparer = VertexComparer};
             var list2 = new SortedStackListQueue<Vertex>(edge) {Comparer = VertexComparer};
             if (!list1.Equals(list2)) return false;
@@ -93,66 +159,6 @@ namespace PlanarGraph.Data
         public override int GetHashCode()
         {
             return new Graph(this).GetHashCode();
-        }
-
-        public bool BelongsTo(Graph graph)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Circle circle)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Edge edge)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Path path)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool BelongsTo(Segment segment)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Graph graph)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Circle circle)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Edge edge)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Path path)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool Contains(Segment segment)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool FromTo(IEnumerable<Vertex> collection)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public bool FromOrTo(IEnumerable<Vertex> collection)
-        {
-            throw new System.NotImplementedException();
         }
     }
 }

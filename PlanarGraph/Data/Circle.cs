@@ -15,6 +15,10 @@ namespace PlanarGraph.Data
     {
         private static readonly VertexComparer VertexComparer = new VertexComparer();
 
+        public override StackListQueue<int> GetInts(Vertex values)
+        {
+            return new StackListQueue<int> { values.Id };
+        }
         public Circle()
         {
         }
@@ -110,7 +114,7 @@ namespace PlanarGraph.Data
         /// </summary>
         public bool IsSimpleCircle()
         {
-            return this.Distinct().Count() == Count;
+            return Distinct().Count() == Count;
         }
 
         /// <summary>
@@ -146,7 +150,7 @@ namespace PlanarGraph.Data
 
         public IEnumerable<Path> Split(Graph graph)
         {
-            var list = new List<Path>();
+            var list = new StackListQueue<Path>();
             var indexes = new StackListQueue<int>(this.Intersect(graph.Vertices).Select(v => IndexOf(v)));
             int count = indexes.Count;
             if (count == 0) return list;

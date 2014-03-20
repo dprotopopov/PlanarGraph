@@ -79,7 +79,7 @@ namespace PlanarGraph.GF2
         {
             get
             {
-                var list = new List<int>();
+                var list = new StackListQueue<int>();
                 int length = Length;
                 for (int i = 0; i < length; i++)
                 {

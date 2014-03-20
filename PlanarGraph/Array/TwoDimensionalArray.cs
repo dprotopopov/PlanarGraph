@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using PlanarGraph.Collections;
 
 namespace PlanarGraph.Array
 {
@@ -21,7 +21,7 @@ namespace PlanarGraph.Array
 
         public T[][] ToArrayOfArray()
         {
-            var list = new List<T[]>();
+            var list = new StackListQueue<T[]>();
             int rows = _twoDimensional.GetLength(0);
             int columns = _twoDimensional.GetLength(1);
             for (int i = 0; i < rows; i++)
