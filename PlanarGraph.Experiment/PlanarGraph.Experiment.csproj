@@ -131,6 +131,14 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\MyLibrary\MyCudafy\MyCudafy.csproj">
+      <Project>{325a76ab-5185-432d-be58-8c6dda03c458}</Project>
+      <Name>MyCudafy</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\MyLibrary\MyLibrary\MyLibrary.csproj">
+      <Project>{e80cf993-5e07-4875-85fe-a2adcf76558d}</Project>
+      <Name>MyLibrary</Name>
+    </ProjectReference>
     <ProjectReference Include="..\PlanarGraph\PlanarGraph.csproj">
       <Project>{2AB016DE-B835-40F1-96D3-A62E3ECCEBE6}</Project>
       <Name>PlanarGraph</Name>

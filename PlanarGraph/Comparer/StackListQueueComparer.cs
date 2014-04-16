@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using PlanarGraph.Collections;
-using PlanarGraph.Parallel;
+using MyCudafy;
+using MyCudafy.Collections;
 
 namespace PlanarGraph.Comparer
 {
@@ -10,8 +10,8 @@ namespace PlanarGraph.Comparer
     {
         public int Compare(StackListQueue<T> x, StackListQueue<T> y)
         {
-            var list1 = x.Select(x.GetInts).Select(i => i.ToArray()).ToArray();
-            var list2 = y.Select(x.GetInts).Select(i => i.ToArray()).ToArray();
+            int[][] list1 = x.Select(x.GetInts).Select(i => i.ToArray()).ToArray();
+            int[][] list2 = y.Select(x.GetInts).Select(i => i.ToArray()).ToArray();
             int value = list1.Length - list2.Length;
             if (value != 0) return value;
             var list11 = new StackListQueue<StackListQueue<int>>(list1.Select(i => new StackListQueue<int>(i.Length)));

@@ -2,12 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using MyCudafy.Collections;
 using PlanarGraph.Algorithm;
-using PlanarGraph.Array;
+using MyLibrary.Array;
 using PlanarGraph.Collections;
 using PlanarGraph.Data;
 using PlanarGraph.GF2;
-using PlanarGraph.Parallel;
+using MyCudafy;
 
 namespace PlanarGraph.UnitTest
 {
@@ -340,9 +341,6 @@ namespace PlanarGraph.UnitTest
                     new BooleanMatrix(
                         Enumerable.Range(0, 5).Select(i1 => Enumerable.Range(0, 10).Select(i => random.Next()%2 == 0)));
                 int[] indexes = Enumerable.Range(1, 5).Select(i => random.Next()%5).ToArray();
-                CudafyMatrix.ExecuteUpdate();
-                Console.WriteLine(string.Join(",",
-                    CudafyMatrix.GetIndexes().Select(i => i.ToString()).ToList()));
                 Console.WriteLine(string.Join(",",
                     indexes.Select(i => i.ToString()).ToList()));
 
@@ -469,7 +467,7 @@ namespace PlanarGraph.UnitTest
                 list2.Sort();
                 Console.WriteLine("list1:" + list1);
                 Console.WriteLine("list2:" + list2);
-                Assert.IsTrue(list1.Equals(list2));
+                Assert.IsTrue(list1.SequenceEqual(list2));
             }
         }
     }

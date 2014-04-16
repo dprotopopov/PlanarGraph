@@ -1,8 +1,9 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using MyCudafy;
+using MyCudafy.Collections;
 using PlanarGraph.Comparer;
 using PlanarGraph.Data;
-using PlanarGraph.Parallel;
 
 namespace PlanarGraph.Collections
 {
@@ -37,7 +38,6 @@ namespace PlanarGraph.Collections
             if (Count == 0) return new StackListQueue<Path>();
             var list = new StackListQueue<StackListQueue<int>>();
             list.AddRange(this.Select(path => new StackListQueue<int>(path.Select(vertex => vertex.Id))));
-            list.AddRange(this.Select(path => new StackListQueue<int>(path.GetReverse().Select(vertex => vertex.Id))));
             int[,] matrix;
             int[] indexes;
             lock (CudafySequencies.Semaphore)
@@ -55,8 +55,28 @@ namespace PlanarGraph.Collections
                 CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
                 indexes = CudafyMatrix.GetIndexes();
             }
-            return indexes.Where((value, index) => value == index && index < Count)
+            IEnumerable<Path> paths1 = indexes.Where((value, index) => value == index)
                 .Select(index => this[index]);
+            var list1 = new StackListQueue<StackListQueue<int>>();
+            var list2 = new StackListQueue<StackListQueue<int>>();
+            list1.AddRange(paths1.Select(path => new StackListQueue<int>(path.Select(vertex => vertex.Id))));
+            list2.AddRange(paths1.Select(path => new StackListQueue<int>(path.GetReverse().Select(vertex => vertex.Id))));
+            lock (CudafySequencies.Semaphore)
+            {
+                CudafySequencies.SetSequencies(
+                    list1.Select(item => item.ToArray()).ToArray(),
+                    list2.Select(item => item.ToArray()).ToArray()
+                    );
+                CudafySequencies.Execute("Compare");
+                matrix = CudafySequencies.GetMatrix();
+            }
+            lock (CudafyMatrix.Semaphore)
+            {
+                CudafyMatrix.SetMatrix(matrix);
+                CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
+                indexes = CudafyMatrix.GetIndexes();
+            }
+            return paths1.Where((value, index) => indexes[index] == -1 || indexes[index] >= index);
         }
     }
 }

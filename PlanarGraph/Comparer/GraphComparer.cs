@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using PlanarGraph.Collections;
+using MyCudafy.Collections;
 using PlanarGraph.Data;
 
 namespace PlanarGraph.Comparer

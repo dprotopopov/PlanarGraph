@@ -2,13 +2,14 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using PlanarGraph.Array;
+using MyCudafy;
+using MyCudafy.Collections;
+using MyLibrary.Array;
+using MyLibrary.Worker;
 using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
 using PlanarGraph.Data;
 using PlanarGraph.GF2;
-using PlanarGraph.Parallel;
-using PlanarGraph.Worker;
 
 namespace PlanarGraph.Algorithm
 {
@@ -116,7 +117,7 @@ namespace PlanarGraph.Algorithm
                 //if (WorkerLog != null) WorkerLog("Находим все циклы в графе");
                 //IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
 
-                //if (!circles.Any()) continue; // граф — дерево и нарисовать его плоскую укладку тривиально.
+                if (!circles.Any()) continue; // граф — дерево и нарисовать его плоскую укладку тривиально.
 
                 //Debug.Assert(subGraph.Vertices.Count() ==
                 //             circles.SelectMany(circle => circle.ToList()).Distinct().Count());

@@ -2,8 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using MyCudafy;
+using MyCudafy.Collections;
 using PlanarGraph.Collections;
-using PlanarGraph.Parallel;
 
 namespace PlanarGraph.Data
 {

@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Windows.Forms;
 using PlanarGraph.Algorithm;
 using PlanarGraph.Data;
-using PlanarGraph.Worker;
+using MyLibrary.Worker;
 
 namespace PlanarGraph.Experiment
 {

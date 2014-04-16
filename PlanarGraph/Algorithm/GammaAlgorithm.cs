@@ -2,10 +2,11 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using MyCudafy;
+using MyCudafy.Collections;
+using MyLibrary.Worker;
 using PlanarGraph.Collections;
 using PlanarGraph.Data;
-using PlanarGraph.Parallel;
-using PlanarGraph.Worker;
 
 namespace PlanarGraph.Algorithm
 {
@@ -115,18 +116,24 @@ namespace PlanarGraph.Algorithm
 
                     subGraph.RemoveAllTrees();
 
-                    if (WorkerLog != null) WorkerLog("Находим ЛЮБОЙ цикл в графе");
+                    if (WorkerLog != null) WorkerLog("Находим ЛЮБОЙ? или ЛЮБОЙ МАКСИМАЛЬНОЙ ДЛИНЫ? цикл в графе");
                     Circle circle = null;
-                    foreach (
-                        var key in subGraph.Vertices.Select(vertex => new KeyValuePair<Vertex, Vertex>(vertex, vertex)))
+                    for (int i = cachedSubGraphPaths.Keys.Max(); i > 3; i--)
                     {
-                        foreach (var pair in cachedSubGraphPaths.Where(pair => pair.Key > 3))
+                        foreach (var pair in cachedSubGraphPaths.Where(pair => pair.Key == i))
                         {
-                            if (pair.Value.ContainsKey(key) && pair.Value[key].Any())
+                            foreach (
+                                var key in
+                                    subGraph.Vertices.Select(vertex => new KeyValuePair<Vertex, Vertex>(vertex, vertex))
+                                )
                             {
-                                Path path = pair.Value[key].First();
-                                circle = new Circle(path.GetRange(0, path.Count - 1));
-                                break;
+                                if (pair.Value.ContainsKey(key) && pair.Value[key].Any())
+                                {
+                                    Path path = pair.Value[key].First();
+                                    circle = new Circle(path.GetRange(0, path.Count - 1));
+                                    break;
+                                }
+                                if (circle != null) break;
                             }
                             if (circle != null) break;
                         }
@@ -351,6 +358,7 @@ namespace PlanarGraph.Algorithm
                                 CudafyMatrix.ExecuteCountMinInColumn();
                                 counts = CudafyMatrix.GetCounts().ToArray();
                                 minCount = CudafyMatrix.GetMinCount();
+                                if (WorkerLog != null) WorkerLog("min |Γ(S)| = " + minCount);
                                 if (minCount == 0)
                                 {
                                     if (WorkerLog != null) WorkerLog("Существует сегмент S, для которого |Γ(S)| = 0");
@@ -371,6 +379,10 @@ namespace PlanarGraph.Algorithm
                                 indexes = CudafyMatrix.GetIndexes();
                             }
                             int pathIndex = counts.ToList().IndexOf(minCount);
+                            for (int nextPathIndex = counts.ToList().IndexOf(minCount, pathIndex + 1);
+                                nextPathIndex > 0;
+                                nextPathIndex = counts.ToList().IndexOf(minCount, nextPathIndex + 1))
+                                if (paths[nextPathIndex].Count > paths[pathIndex].Count) pathIndex = nextPathIndex;
                             int edgeIndex = indexes[pathIndex];
                             path1 = paths[pathIndex];
                             edge1 = context.Edges[edgeIndex];
@@ -393,7 +405,11 @@ namespace PlanarGraph.Algorithm
                                 if (WorkerComplite != null) WorkerComplite(result);
                                 return result;
                             }
-                            path1 = paths.First(path => context.Edges.Count(path.FromTo) == minCount);
+                            int count =
+                                paths.Where(path => context.Edges.Count(path.FromTo) == minCount)
+                                    .Max(path => path.Count);
+                            path1 =
+                                paths.First(path => context.Edges.Count(path.FromTo) == minCount && path.Count == count);
                             edge1 = context.Edges.Where(path1.FromTo).First();
                         }
 

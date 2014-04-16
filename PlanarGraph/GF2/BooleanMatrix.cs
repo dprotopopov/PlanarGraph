@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using PlanarGraph.Collections;
-using Boolean = PlanarGraph.Types.Boolean;
+using MyCudafy.Collections;
+using Boolean = MyLibrary.Types.Boolean;
 
 namespace PlanarGraph.GF2
 {

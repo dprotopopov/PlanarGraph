@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using PlanarGraph.Collections;
-using PlanarGraph.Types;
+using MyCudafy.Collections;
+using MyLibrary.Types;
 
 namespace PlanarGraph.GF2
 {
@@ -17,7 +17,7 @@ namespace PlanarGraph.GF2
 
         public override string ToString()
         {
-            return string.Join("", this.Select(b => b ? "1" : "0"));
+            return string.Join((string) "", (IEnumerable<string>) this.Select(b => b ? "1" : "0"));
         }
 
         public static BooleanVector And(BooleanVector vector1, BooleanVector vector2)

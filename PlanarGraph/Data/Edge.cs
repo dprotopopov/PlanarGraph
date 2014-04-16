@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using MyCudafy.Collections;
 using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
 

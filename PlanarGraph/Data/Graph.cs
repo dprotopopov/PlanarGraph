@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
+using MyCudafy;
+using MyCudafy.Collections;
 using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
 using PlanarGraph.GF2;
-using PlanarGraph.Parallel;
 
 namespace PlanarGraph.Data
 {

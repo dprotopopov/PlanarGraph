@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using PlanarGraph.Collections;
 using PlanarGraph.Data;
-using PlanarGraph.Parallel;
 
 namespace PlanarGraph.Comparer
 {
