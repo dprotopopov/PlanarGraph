@@ -4,7 +4,7 @@ using PlanarGraph.Data;
 
 namespace PlanarGraph.Comparer
 {
-    internal class CircleComparer : IComparer<Circle>
+    internal class CircleComparer : IComparer<Circle>, IEqualityComparer<Circle>
     {
         private static readonly GraphComparer GraphComparer = new GraphComparer();
 
@@ -20,6 +20,16 @@ namespace PlanarGraph.Comparer
             l2.Sort();
             value = l1.Select((i, j) => i - l2[j]).FirstOrDefault(v => v != 0);
             return value != 0 ? value : GraphComparer.Compare(new Graph(x), new Graph(y));
+        }
+
+        public bool Equals(Circle x, Circle y)
+        {
+            return Compare(x, y) == 0;
+        }
+
+        public int GetHashCode(Circle obj)
+        {
+            return GraphComparer.GetHashCode(new Graph(obj));
         }
     }
 }

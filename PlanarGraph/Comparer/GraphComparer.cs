@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using MyCudafy.Collections;
+using MyLibrary.Types;
 using PlanarGraph.Data;
 
 namespace PlanarGraph.Comparer
 {
-    internal class GraphComparer : IComparer<Graph>
+    internal class GraphComparer : IComparer<Graph>, IEqualityComparer<Graph>
     {
         private static readonly SegmentComparer SegmentComparer = new SegmentComparer();
 
@@ -130,6 +131,16 @@ namespace PlanarGraph.Comparer
             //    return
             //        list1.Select((s, i) => SegmentComparer.Compare(s, list2[i])).FirstOrDefault(compare => compare != 0);
             //}
+        }
+
+        public bool Equals(Graph x, Graph y)
+        {
+            return Compare(x, y) == 0;
+        }
+
+        public int GetHashCode(Graph obj)
+        {
+            return obj.Select((segment, index) => SegmentComparer.GetHashCode(segment)).Aggregate(Int32.Xor);
         }
     }
 }

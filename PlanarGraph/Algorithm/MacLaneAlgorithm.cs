@@ -64,9 +64,11 @@ namespace PlanarGraph.Algorithm
         public MacLaneAlgorithm()
         {
             BooleanVectorComparer = new BooleanVectorComparer();
+            CircleComparer = new CircleComparer();
         }
 
         private BooleanVectorComparer BooleanVectorComparer { get; set; }
+        private CircleComparer CircleComparer { get; set; }
 
         public bool IsPlanar(Graph graphArgument)
         {
@@ -107,17 +109,22 @@ namespace PlanarGraph.Algorithm
                 Dictionary<int, PathDictionary> cachedSubGraphPaths =
                     Graph.GetSubgraphPaths(subGraph.Vertices, cachedAllGraphPaths);
 
-                if (WorkerLog != null) WorkerLog("Находим ВСЕ циклы в графе (не сортируя и не удаляя дубликаты)");
-                IEnumerable<Circle> circles = cachedSubGraphPaths.Where(pair => pair.Key > 2)
+                if (WorkerLog != null) WorkerLog("Находим ВСЕ циклы в графе");
+                IEnumerable<Circle> circles = new StackListQueue<Circle>(cachedSubGraphPaths.Where(pair => pair.Key > 2)
                     .SelectMany(pair => subGraph.Vertices
                         .SelectMany(vertex => pair.Value.Where(pair2 => pair2.Key.Key.Equals(pair2.Key.Value))
                             .SelectMany(
-                                pair2 => pair2.Value.Select(path => new Circle(path.GetRange(0, path.Count - 1))))));
+                                pair2 => pair2.Value.Select(path => new Circle(path.GetRange(0, path.Count - 1)))))));
+                if (WorkerLog != null) WorkerLog(string.Format("Количество циклов {0}", circles.Count()));
 
                 //if (WorkerLog != null) WorkerLog("Находим все циклы в графе");
                 //IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
 
                 if (!circles.Any()) continue; // граф — дерево и нарисовать его плоскую укладку тривиально.
+
+                if (WorkerLog != null) WorkerLog("Удаляем дубликаты");
+                circles = new StackListQueue<Circle>(circles.Distinct(CircleComparer));
+                if (WorkerLog != null) WorkerLog(string.Format("Количество циклов {0}", circles.Count()));
 
                 //Debug.Assert(subGraph.Vertices.Count() ==
                 //             circles.SelectMany(circle => circle.ToList()).Distinct().Count());
@@ -127,13 +134,27 @@ namespace PlanarGraph.Algorithm
                 //     матрицы к каноническому виду. Поэтому если действительно надо сделать хорошую реализацию, то либо надо закоментировать
                 //     проверки циклов на простоту и что они являются тау-циклами с помощью приведения к каноническому виду , либо
                 //     предложить алгоритм быстрой проверки, что цикл является тау-циклом
-                //circles = circles.Where(circle => circle.IsSimpleCircle()).ToList();
-                //circles = circles.Where(circle => circle.IsTauCircle(subGraph, cachedSubGraphPaths)).ToList();
+                if (WorkerLog != null)
+                    foreach (Circle circle in new StackListQueue<Circle>(circles.Where(c => !c.IsSimpleCircle())))
+                        WorkerLog("Цикл " + circle + " НЕ ПРОСТОЙ!!!");
+
+                if (WorkerLog != null) WorkerLog("Ограничиваем простыми циклами");
+                circles = new StackListQueue<Circle>(circles.Where(circle => circle.IsSimpleCircle()));
+                if (WorkerLog != null) WorkerLog(string.Format("Количество циклов {0}", circles.Count()));
+
+                //if (WorkerLog != null) WorkerLog("Ограничиваем тау-циклами");
+                //circles =
+                //    new StackListQueue<Circle>(circles.Where(circle => circle.IsTauCircle(subGraph, cachedSubGraphPaths)));
+                //if (WorkerLog != null) WorkerLog(string.Format("Количество циклов {0}", circles.Count()));
 
                 Debug.WriteLine(string.Join(Environment.NewLine, circles.Select(circle => circle.ToString())));
 
                 if (WorkerLog != null) WorkerLog("Строим матрицу над GF2 из найденных циклов");
-                var booleanMatrix = new BooleanMatrix(circles.Select(subGraph.GetVector));
+                var booleanMatrix =
+                    new BooleanMatrix(new StackListQueue<BooleanVector>(circles.Select(subGraph.GetVector)));
+                if (WorkerLog != null)
+                    WorkerLog(string.Format("Размер матрицы {0}х{1}", booleanMatrix.Count(), booleanMatrix.Length));
+
                 Debug.WriteLine("matrix:");
                 Debug.WriteLine(booleanMatrix);
 
@@ -195,6 +216,9 @@ namespace PlanarGraph.Algorithm
                             booleanMatrix.Enqueue(vector);
                         }
                     }
+                    if (WorkerLog != null)
+                        WorkerLog(string.Format("Размер матрицы {0}х{1}", booleanMatrix.Count(), booleanMatrix.Length));
+
                     // Матрица имеет канонический вид
                     Debug.WriteLine("matrix:");
                     Debug.WriteLine(booleanMatrix);

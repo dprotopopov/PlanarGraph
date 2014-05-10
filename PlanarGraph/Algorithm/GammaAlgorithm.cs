@@ -116,7 +116,7 @@ namespace PlanarGraph.Algorithm
 
                     subGraph.RemoveAllTrees();
 
-                    if (WorkerLog != null) WorkerLog("Находим ЛЮБОЙ? или ЛЮБОЙ МАКСИМАЛЬНОЙ ДЛИНЫ? цикл в графе");
+                    if (WorkerLog != null) WorkerLog("Находим ЛЮБОЙ МАКСИМАЛЬНОЙ ДЛИНЫ цикл в графе");
                     Circle circle = null;
                     for (int i = cachedSubGraphPaths.Keys.Max(); i > 3; i--)
                     {

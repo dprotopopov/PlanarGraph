@@ -21,6 +21,13 @@ namespace PlanarGraph.Data
         private readonly KeyValuePairVertexVertexComparer _keyValuePairVertexVertexComparer =
             new KeyValuePairVertexVertexComparer();
 
+        private readonly KeyValuePairVertexVertexPathCollectionComparer _keyValuePairVertexVertexPathCollectionComparer
+            =
+            new KeyValuePairVertexVertexPathCollectionComparer();
+
+        private readonly SegmentComparer _segmentComparer =
+            new SegmentComparer();
+
         public Graph()
         {
         }
@@ -457,22 +464,17 @@ namespace PlanarGraph.Data
 
         public void RemoveIntermedians()
         {
-            for (List<Segment> segments = this.SelectMany(segment => segment)
+            for (IEnumerable<Segment> segments = this.SelectMany(segment => segment)
                 .Distinct()
                 .Where(vertix => this.Count(segment2 => segment2.Contains(vertix)) == 1)
-                .SelectMany(vertix => this.Where(segment2 => segment2.Contains(vertix)))
-                .ToList();
+                .SelectMany(vertix => this.Where(segment2 => segment2.Contains(vertix)));
                 segments.Any();
                 segments = this.SelectMany(segment => segment)
                     .Distinct()
                     .Where(vertix => this.Count(segment2 => segment2.Contains(vertix)) == 1)
-                    .SelectMany(vertix => this.Where(segment2 => segment2.Contains(vertix)))
-                    .ToList()
-                )
-            {
+                    .SelectMany(vertix => this.Where(segment2 => segment2.Contains(vertix))))
                 foreach (Segment segment in segments)
                     Remove(segment);
-            }
         }
 
         /// <summary>
@@ -559,12 +561,10 @@ namespace PlanarGraph.Data
                 .SelectMany(
                     p => p.Value.Select(pair =>
                         new KeyValuePair<KeyValuePair<Vertex, Vertex>, int>(pair.Key, p.Key)));
-
-            return fromTo.Where(
-                p1 =>
-                    p1.Value ==
-                    fromTo.Where(p2 => p2.Key.Key == p1.Key.Key && p2.Key.Value == p1.Key.Value).Min(p => p.Value))
-                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            return fromTo.Select(pair => pair.Key).Distinct(_keyValuePairVertexVertexComparer)
+                .ToDictionary(
+                    pair => pair,
+                    pair => fromTo.Where(p2 => p2.Key.Key == pair.Key && p2.Key.Value == pair.Value).Min(p => p.Value));
         }
 
         public Graph GetSubgraph(IEnumerable<Vertex> vertices)

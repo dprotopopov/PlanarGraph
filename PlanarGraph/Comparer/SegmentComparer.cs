@@ -1,11 +1,14 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using MyLibrary.Types;
 using PlanarGraph.Data;
 
 namespace PlanarGraph.Comparer
 {
-    public class SegmentComparer : IComparer<Segment>
+    public class SegmentComparer : IComparer<Segment>, IEqualityComparer<Segment>
     {
+        private static readonly VertexComparer VertexComparer = new VertexComparer();
+
         public int Compare(Segment x, Segment y)
         {
             List<int> l1 = x.Select(v => v.Id).ToList();
@@ -66,6 +69,16 @@ namespace PlanarGraph.Comparer
             //        list11.Select((t, i) => t - list22[i])
             //            .FirstOrDefault(compare => compare != 0);
             //}
+        }
+
+        public bool Equals(Segment x, Segment y)
+        {
+            return Compare(x, y) == 0;
+        }
+
+        public int GetHashCode(Segment obj)
+        {
+            return obj.Select(vertex => VertexComparer.GetHashCode(vertex)).Aggregate(Int32.Mul);
         }
     }
 }

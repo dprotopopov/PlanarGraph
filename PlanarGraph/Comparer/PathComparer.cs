@@ -4,7 +4,7 @@ using PlanarGraph.Data;
 
 namespace PlanarGraph.Comparer
 {
-    internal class PathComparer : IComparer<Path>
+    internal class PathComparer : IComparer<Path>, IEqualityComparer<Path>
     {
         private static readonly GraphComparer GraphComparer = new GraphComparer();
 
@@ -77,6 +77,16 @@ namespace PlanarGraph.Comparer
             //{
             //    return GraphComparer.Compare(new Graph(x), new Graph(y));
             //}
+        }
+
+        public bool Equals(Path x, Path y)
+        {
+            return Compare(x, y) == 0;
+        }
+
+        public int GetHashCode(Path obj)
+        {
+            return GraphComparer.GetHashCode(new Graph(obj));
         }
     }
 }
