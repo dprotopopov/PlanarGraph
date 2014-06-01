@@ -26,6 +26,11 @@ namespace PlanarGraph.Collections
         {
         }
 
+        public new int IndexOf(Vertex item)
+        {
+            return base.IndexOf(item);
+        }
+
         public override bool Equals(object obj)
         {
             return base.Equals(obj);

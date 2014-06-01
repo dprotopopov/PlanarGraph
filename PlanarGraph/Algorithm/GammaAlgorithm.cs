@@ -83,7 +83,7 @@ namespace PlanarGraph.Algorithm
             graph.RemoveIntermedians();
 
             // Шаг второй - граф нужно укладывать отдельно по компонентам связности.
-            if (WorkerLog != null) WorkerLog("Находим все неповторяющиеся пути в графе");
+            if (WorkerLog != null) WorkerLog("Находим ВСЕ пути в графе длины не более размера графа + 1");
             Dictionary<int, PathDictionary> cachedAllGraphPaths = graph.GetAllGraphPaths();
             var queue = new StackListQueue<Context>
             {
@@ -114,9 +114,54 @@ namespace PlanarGraph.Algorithm
                     Dictionary<int, PathDictionary> cachedSubGraphPaths =
                         context.CachedSubGraphPathsQueue.Dequeue();
 
-                    subGraph.RemoveAllTrees();
+                    // На вход подаются графы, обладающие следующими свойствами:
+                    // граф связный;
+                    // граф имеет хотя бы один цикл;
+                    // граф не имеет мостиков, т. е. ребер, после удаления которых 
+                    // граф распадается на две компонеты связности.
 
-                    if (WorkerLog != null) WorkerLog("Находим ЛЮБОЙ МАКСИМАЛЬНОЙ ДЛИНЫ цикл в графе");
+                    if (WorkerLog != null)
+                        WorkerLog(
+                            "Находим мосты после удаления которых граф распадается на несколько компонет связности");
+
+                    var vertices = new StackListQueue<Vertex>(subGraph.Vertices);
+                    var bridges = new StackListQueue<Vertex>();
+                    for (int i = 0; i < vertices.Count; i++)
+                    {
+                        Vertex dequeue = vertices.Dequeue();
+                        IEnumerable<Graph> subsubgraphs = subGraph.GetSubgraph(vertices).GetAllSubGraphs();
+                        if (subsubgraphs.Count() > 1) bridges.Add(dequeue);
+                        vertices.Enqueue(dequeue);
+                    }
+
+                    Debug.Assert(bridges.Count != vertices.Count);
+
+                    if (bridges.Any())
+                    {
+                        // Если в графе есть мосты, то их нужно разрезать, провести отдельно плоскую укладку 
+                        // каждой компоненты связности, а затем соединить их мостами. 
+                        // Здесь может возникнуть трудность: в процессе укладки концевые вершины моста могут 
+                        // оказаться внутри плоского графа. Нарисуем одну компоненту связности, 
+                        // и будем присоединять к ней другие последовательно.
+                        // Каждую новую компоненту связности будем рисовать в той грани, в которой лежит 
+                        // концевая вершина соответствующего моста. Так как граф связности мостами компонент 
+                        // связности является деревом, мы сумеем получить плоскую укладку.
+                        if (WorkerLog != null)
+                            WorkerLog(
+                                "В графе есть мосты, их нужно разрезать, провести отдельно плоскую укладку, а затем соединить их мостами.");
+                        if (WorkerLog != null)WorkerLog("Мосты: "+string.Join(",",bridges));
+                        
+                        IEnumerable<Vertex> exceptBridges = vertices.Except(bridges);
+                        IEnumerable<Graph> subsubgraphs = subGraph.GetSubgraph(exceptBridges).GetAllSubGraphs();
+                        context.SubGraphQueue.Enqueue(subsubgraphs.Select(subgraph => subGraph.GetSubgraph(subgraph.Vertices.Union(bridges))));
+                        context.CachedSubGraphPathsQueue.Enqueue(
+                            subsubgraphs.Select(
+                                subgraph => Graph.GetSubgraphPaths(subgraph.Vertices.Union(bridges), cachedSubGraphPaths)));
+                        
+                        continue;
+                    }
+
+                    if (WorkerLog != null) WorkerLog("Находим ЛЮБОЙ МАКСИМАЛЬНОЙ ДЛИНЫ простой цикл в графе");
                     Circle circle = null;
                     for (int i = cachedSubGraphPaths.Keys.Max(); i > 3; i--)
                     {
@@ -129,9 +174,13 @@ namespace PlanarGraph.Algorithm
                             {
                                 if (pair.Value.ContainsKey(key) && pair.Value[key].Any())
                                 {
-                                    Path path = pair.Value[key].First();
-                                    circle = new Circle(path.GetRange(0, path.Count - 1));
-                                    break;
+                                    foreach (Path path in pair.Value[key])
+                                    {
+                                        circle = new Circle(path.GetRange(0, path.Count - 1));
+                                        if (Circle.IsSimple(circle)) break;
+                                        circle = null;
+                                    }
+                                    if (circle != null) break;
                                 }
                                 if (circle != null) break;
                             }
@@ -150,35 +199,13 @@ namespace PlanarGraph.Algorithm
                     // Инициализация алгоритма производится так: выбираем любой простой цикл;
                     // и получаем две грани: Γ1 — внешнюю и Γ2 — внутреннюю
 
-                    if (circle != null && !context.Edges.Any())
-                        context.Edges.Add(new Edge(circle));
-
                     if (circle != null)
                     {
+                        context.Edges.Add(new Edge(circle));
                         context.Edges.Add(new Edge(circle));
                         context.Builded.Add(context.Edges.Last());
                     }
 
-                    //IEnumerable<Circle> circles = subGraph.GetAllGraphCircles(cachedSubGraphPaths);
-
-                    //if (!circles.Any() && !context.Edges.Any())
-                    //{
-                    //    // граф — дерево и нарисовать его плоскую укладку тривиально.
-                    //    // Поскольку мы ещё не начинали рисовать, то значит всё проверено
-                    //    continue;
-                    //}
-
-                    //// Инициализация алгоритма производится так: выбираем любой простой цикл;
-                    //// и получаем две грани: Γ1 — внешнюю и Γ2 — внутреннюю
-
-                    //if (circles.Any() && !context.Edges.Any())
-                    //    context.Edges.Add(new Edge(circles.First()));
-
-                    //if (circles.Any())
-                    //{
-                    //    context.Edges.Add(new Edge(circles.First()));
-                    //    context.Builded.Add(context.Edges.Last());
-                    //}
                     // Если циклов нет, то надо проверить, что данное дерево 
                     // можно вписать в уже построенный граф
 
@@ -187,11 +214,6 @@ namespace PlanarGraph.Algorithm
                     Debug.WriteLine("edges:" +
                                     string.Join(Environment.NewLine, context.Edges.Select(e => e.ToString())));
 
-                    // На вход подаются графы, обладающие следующими свойствами:
-                    // граф связный;
-                    // граф имеет хотя бы один цикл;
-                    // граф не имеет мостиков, т. е. ребер, после удаления которых 
-                    // граф распадается на две компонеты связности.
 
                     // Каждый сегмент S относительно уже построенного графа G′ представляет собой одно из двух:
                     // ребро, оба конца которого принадлежат G′, но само оно не принадлежит G′;
@@ -202,30 +224,28 @@ namespace PlanarGraph.Algorithm
                     VertexSortedCollection buildedVertices = context.Builded.Vertices;
                     var secondGraph = new Graph(subGraph.Except(context.Builded));
 
-                    IEnumerable<Graph> collection = secondGraph.GetAllSubGraphs();
-                    context.SubGraphQueue.AddRange(collection);
-                    context.CachedSubGraphPathsQueue.AddRange(
-                        collection.Select(subgraph => Graph.GetSubgraphPaths(subgraph.Vertices, cachedSubGraphPaths)));
+                    if (secondGraph.Any())
+                    {
+                        IEnumerable<Graph> collection = secondGraph.GetAllSubGraphs();
+                        context.SubGraphQueue.Enqueue(collection);
+                        context.CachedSubGraphPathsQueue.Enqueue(
+                            collection.Select(subgraph => Graph.GetSubgraphPaths(subgraph.Vertices, cachedSubGraphPaths)));
+                    }
 
-                    // Если в графе есть мосты, то их нужно разрезать, провести отдельно плоскую укладку 
-                    // каждой компоненты связности, а затем соединить их мостами. 
-                    // Здесь может возникнуть трудность: в процессе укладки концевые вершины моста могут 
-                    // оказаться внутри плоского графа. Нарисуем одну компоненту связности, 
-                    // и будем присоединять к ней другие последовательно.
-                    // Каждую новую компоненту связности будем рисовать в той грани, в которой лежит 
-                    // концевая вершина соответствующего моста. Так как граф связности мостами компонент 
-                    // связности является деревом, мы сумеем получить плоскую укладку.
 
+                    Dictionary<int, PathDictionary> fromTo = Graph.GetFromToPaths(buildedVertices,
+                        buildedVertices,
+                        cachedSubGraphPaths);
                     var paths =
-                        new PathCollection(
-                            new PathCollection(Graph.GetFromToPaths(buildedVertices,
-                                buildedVertices,
-                                cachedSubGraphPaths)
-                                .SelectMany(pair => pair.Value)
-                                .SelectMany(pair => pair.Value)
-                                .Where(Path.IsNoVertix)
-                                .Where(Path.IsNoCircle)
-                                ).Distinct());
+                        new PathCollection(fromTo
+                            .SelectMany(pair => pair.Value)
+                            .SelectMany(pair => pair.Value)
+                            .Where(Path.IsNoVertix)
+                            .Where(Path.IsNoCircle)
+                            );
+
+                    paths.ReplaceAll(paths.Distinct());
+                    paths.RemoveAll(context.Builded.Contains);
 
                     Debug.WriteLine("paths " + paths);
                     Debug.WriteLine("builded " + context.Builded);
@@ -234,12 +254,17 @@ namespace PlanarGraph.Algorithm
 
                     while (paths.Any())
                     {
-                        paths.ReplaceAll(paths.Distinct().Where(path => !context.Builded.Contains(path)));
+                        paths.RemoveAll(context.Builded.Contains);
+                        Debug.WriteLine("paths " + paths);
                         if (!paths.Any()) continue;
                         try
                         {
-                            while (paths.Any(path => path.Count > 2))
+                            while (paths.Any(Path.IsLong))
                             {
+                                // Находим для всех путей их перечечения с уже построенным графом
+                                // Разбиваем пути в найденных точках пересечения с уже построенным графом
+                                // Если точек пересечения не найдено, то выходим из цикла
+
                                 int[,] matrix;
                                 int[] indexes;
                                 lock (CudafySequencies.Semaphore)
@@ -249,16 +274,18 @@ namespace PlanarGraph.Algorithm
                                             path =>
                                                 path.GetRange(1, path.Count - 2).Select(vertex => vertex.Id).ToArray())
                                             .ToArray(),
-                                        context.Builded.Select(segment => segment.Select(vertex => vertex.Id).ToArray())
+                                        context.Builded.Vertices.Select(
+                                            vertex => new StackListQueue<int>(vertex.Id).ToArray())
                                             .ToArray()
                                         );
-                                    CudafySequencies.Execute("CountIntersections");
+                                    CudafySequencies.Execute("CountIntersections"); // подсчитываем число пересечений
                                     matrix = CudafySequencies.GetMatrix();
                                 }
                                 lock (CudafyMatrix.Semaphore)
                                 {
                                     CudafyMatrix.SetMatrix(matrix);
                                     CudafyMatrix.ExecuteRepeatZeroIndexOfNonZero();
+                                    // находим индексы ненулевых элементов в строках
                                     indexes = CudafyMatrix.GetIndexes();
                                 }
                                 Dictionary<int, int> dictionary = indexes.Select(
@@ -269,17 +296,16 @@ namespace PlanarGraph.Algorithm
                                 Debug.Assert(dictionary.All(pair => pair.Key >= 0));
                                 Debug.Assert(dictionary.All(pair => pair.Value >= 0));
                                 Debug.Assert(dictionary.All(pair => pair.Key < paths.Count));
-                                Debug.Assert(dictionary.All(pair => pair.Value < context.Builded.Count));
-                                List<KeyValuePair<Path, Segment>> dictionary2 =
+                                Debug.Assert(dictionary.All(pair => pair.Value < context.Builded.Vertices.Count));
+                                var dictionary2 = new StackListQueue<KeyValuePair<Path, Vertex>>(
                                     dictionary.Select(
                                         pair =>
-                                            new KeyValuePair<Path, Segment>(new Path(paths[pair.Key]),
-                                                new Segment(context.Builded[pair.Value])))
-                                        .ToList();
-                                List<int> list = dictionary.Select(pair => pair.Key).Distinct().ToList();
+                                            new KeyValuePair<Path, Vertex>(new Path(paths[pair.Key]),
+                                                new Vertex(context.Builded.Vertices[pair.Value])))
+                                    );
+                                var list = new StackListQueue<int>(dictionary.Select(pair => pair.Key).Distinct());
                                 list.Sort();
                                 Debug.Assert(dictionary2.All(pair => pair.Key.Count > 1));
-                                Debug.Assert(dictionary2.All(pair => pair.Value.Count == 2));
                                 for (int i = list.Count; i-- > 0;) paths.RemoveAt(list[i]);
                                 paths.AddRangeExcept(
                                     new PathCollection(
@@ -287,20 +313,26 @@ namespace PlanarGraph.Algorithm
                                             .Where(Path.IsNoVertix)
                                             .Where(Path.IsNoCircle))
                                             .Distinct()));
-                                paths.ReplaceAll(paths.Distinct().Where(path => !context.Builded.Contains(path)));
+                                paths.ReplaceAll(paths.Distinct());
+                                paths.RemoveAll(context.Builded.Contains);
                             }
                         }
                         catch (Exception ex)
                         {
                             if (WorkerLog != null) WorkerLog(ex.ToString());
                             paths.ReplaceAll(
-                                paths.SelectMany(path => path.SplitBy(context.Builded))
+                                paths.SelectMany(context.Builded.Split)
                                     .Where(Path.IsNoVertix)
                                     .Where(Path.IsNoCircle)
                                 );
-                            paths.ReplaceAll(paths.Distinct().Where(path => !context.Builded.Contains(path)));
+                            paths.ReplaceAll(paths.Distinct());
+                            paths.RemoveAll(context.Builded.Contains);
+                        }
+                        finally
+                        {
                         }
 
+                        Debug.WriteLine("paths " + paths);
                         if (!paths.Any()) continue;
 
                         // Общий шаг алгоритма следующий: 
@@ -410,7 +442,7 @@ namespace PlanarGraph.Algorithm
                                     .Max(path => path.Count);
                             path1 =
                                 paths.First(path => context.Edges.Count(path.FromTo) == minCount && path.Count == count);
-                            edge1 = context.Edges.Where(path1.FromTo).First();
+                            edge1 = context.Edges.First(path1.FromTo);
                         }
 
                         // Выбираем один из сегментов с минимальным числом, вмещающих его граней.

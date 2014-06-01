@@ -1,15 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using MyCudafy;
 using MyCudafy.Collections;
 using MyLibrary.Array;
 using MyLibrary.Worker;
+using MyMath.GF2;
 using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
 using PlanarGraph.Data;
-using PlanarGraph.GF2;
 
 namespace PlanarGraph.Algorithm
 {
@@ -94,7 +95,7 @@ namespace PlanarGraph.Algorithm
             // Шаг второй - граф нужно укладывать отдельно по компонентам связности.
             var stackListQueue = new StackListQueue<Graph> {graph.GetAllSubGraphs()};
 
-            if (WorkerLog != null) WorkerLog("Находим все неповторяющиеся пути в графе");
+            if (WorkerLog != null) WorkerLog("Находим ВСЕ пути в графе длины не более размера графа + 1");
             // Глобальные кэшированные данные
             Dictionary<int, PathDictionary> cachedAllGraphPaths =
                 graph.GetAllGraphPaths();
@@ -109,8 +110,8 @@ namespace PlanarGraph.Algorithm
                 Dictionary<int, PathDictionary> cachedSubGraphPaths =
                     Graph.GetSubgraphPaths(subGraph.Vertices, cachedAllGraphPaths);
 
-                if (WorkerLog != null) WorkerLog("Находим ВСЕ циклы в графе");
-                IEnumerable<Circle> circles = new StackListQueue<Circle>(cachedSubGraphPaths.Where(pair => pair.Key > 2)
+                if (WorkerLog != null) WorkerLog("Находим ВСЕ циклы в графе длины не менее 2 и не более размера графа");
+                var circles = new StackListQueue<Circle>(cachedSubGraphPaths.Where(pair => pair.Key > 2)
                     .SelectMany(pair => subGraph.Vertices
                         .SelectMany(vertex => pair.Value.Where(pair2 => pair2.Key.Key.Equals(pair2.Key.Value))
                             .SelectMany(
@@ -134,24 +135,24 @@ namespace PlanarGraph.Algorithm
                 //     матрицы к каноническому виду. Поэтому если действительно надо сделать хорошую реализацию, то либо надо закоментировать
                 //     проверки циклов на простоту и что они являются тау-циклами с помощью приведения к каноническому виду , либо
                 //     предложить алгоритм быстрой проверки, что цикл является тау-циклом
-                if (WorkerLog != null)
-                    foreach (Circle circle in new StackListQueue<Circle>(circles.Where(c => !c.IsSimpleCircle())))
-                        WorkerLog("Цикл " + circle + " НЕ ПРОСТОЙ!!!");
 
                 if (WorkerLog != null) WorkerLog("Ограничиваем простыми циклами");
-                circles = new StackListQueue<Circle>(circles.Where(circle => circle.IsSimpleCircle()));
+                circles.RemoveAll(Circle.IsNotSimple);
+                if (WorkerLog != null) WorkerLog(string.Format("Количество циклов {0}", circles.Count()));
+
+                if (WorkerLog != null) WorkerLog("Удаляем элементарные циклы и петли");
+                circles.RemoveAll(circle => circle.Count < 3);
                 if (WorkerLog != null) WorkerLog(string.Format("Количество циклов {0}", circles.Count()));
 
                 //if (WorkerLog != null) WorkerLog("Ограничиваем тау-циклами");
-                //circles =
-                //    new StackListQueue<Circle>(circles.Where(circle => circle.IsTauCircle(subGraph, cachedSubGraphPaths)));
+                //circles.RemoveAll(circle => !circle.IsTau());
                 //if (WorkerLog != null) WorkerLog(string.Format("Количество циклов {0}", circles.Count()));
 
                 Debug.WriteLine(string.Join(Environment.NewLine, circles.Select(circle => circle.ToString())));
 
                 if (WorkerLog != null) WorkerLog("Строим матрицу над GF2 из найденных циклов");
                 var booleanMatrix =
-                    new BooleanMatrix(new StackListQueue<BooleanVector>(circles.Select(subGraph.GetVector)));
+                    new BooleanMatrix(circles.Select(subGraph.GetVector));
                 if (WorkerLog != null)
                     WorkerLog(string.Format("Размер матрицы {0}х{1}", booleanMatrix.Count(), booleanMatrix.Length));
 
@@ -173,7 +174,9 @@ namespace PlanarGraph.Algorithm
                                 booleanMatrix.Select(vector => vector.Select(b => b ? 1 : 0).ToArray()).ToArray())
                                 .ToTwoDimensional());
 
-                        CudafyMatrix.ExecuteCanonical();
+                        // Использование алгоритма Гаусса-Жордана
+                        // Для приведения матрицы к каноническому виду
+                        CudafyMatrix.ExecuteGaussJordan();
 
                         // Удаляем нулевые строки
                         int[][] arrayOfArray = new TwoDimensionalArray<int>(CudafyMatrix.GetMatrix()).ToArrayOfArray();
@@ -256,9 +259,10 @@ namespace PlanarGraph.Algorithm
                     Debug.WriteLine("macLane = " + macLane);
                     Debug.WriteLine("matrix:");
                     Debug.WriteLine(booleanMatrix);
-                    int k = Math.Min(3, Math.Max(2, (int) Math.Log(n*Math.Log(n))));
+                    int k = Math.Min(2, Math.Max(2, (int) Math.Log(n*Math.Log(n))));
                     k = Math.Min(n, k);
                     if (WorkerLog != null) WorkerLog("Начало симплекс-метода");
+                    if (WorkerLog != null) WorkerLog("Текущий macLane = " + macLane);
                     for (bool updated = true; k <= n && updated && macLane > 0;)
                     {
                         Debug.Assert(booleanMatrix.Length == subGraph.Count());
@@ -268,6 +272,10 @@ namespace PlanarGraph.Algorithm
                         List<int> indexOfIndex = Enumerable.Range(n - k, k).ToList();
                         while (macLane > 0)
                         {
+                            if (WorkerLog != null)
+                                WorkerLog(string.Format("Перебираем индексы в позициях {0}",
+                                    string.Join(",",
+                                        indexOfIndex.Select(index => index.ToString(CultureInfo.InvariantCulture)))));
                             CudafyMatrix.SetMatrix(
                                 new ArrayOfArray<int>(
                                     booleanMatrix.Select(vector => vector.Select(b => b ? 1 : 0).ToArray()).ToArray())
@@ -276,11 +284,15 @@ namespace PlanarGraph.Algorithm
                             foreach (int index in indexOfIndex) indexes[index] = n - 1;
                             while (macLane > 0)
                             {
+                                Debug.Write(string.Format("Проверяем индексы {0} ... ",
+                                    string.Join(",",
+                                        indexes.Select(index => index.ToString(CultureInfo.InvariantCulture)))));
                                 // Проверяем, что матрица образованная indexes является обратимой
-                                if (new BooleanMatrix(indexes).Det)
+                                var detMatrix = new BooleanMatrix(indexes);
+                                if (detMatrix.Det())
                                 {
                                     BooleanMatrix matrix2;
-                                    int macLane2;
+                                    int macLane2 = 0;
                                     try
                                     {
                                         /////////////////////////////////////////////////////
@@ -323,6 +335,10 @@ namespace PlanarGraph.Algorithm
                                                         .Aggregate(booleanMatrix[pair1.Key], BooleanVector.Xor)));
                                         macLane2 = matrix2.MacLane;
                                     }
+                                    finally
+                                    {
+                                        Debug.WriteLine("macLane = " + macLane2);
+                                    }
                                     if (macLane > macLane2)
                                     {
                                         if (WorkerLog != null)
@@ -337,6 +353,10 @@ namespace PlanarGraph.Algorithm
                                         Debug.WriteLine(matrix2);
                                     }
                                     if (macLane == 0) break;
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("Матрица не обратима");
                                 }
                                 int i = k;
                                 while (i-- > 0)

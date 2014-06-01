@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-using PlanarGraph.GF2;
+using MyMath.GF2;
 
 namespace PlanarGraph.Comparer
 {

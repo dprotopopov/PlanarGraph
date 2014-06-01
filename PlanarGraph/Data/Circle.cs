@@ -113,9 +113,14 @@ namespace PlanarGraph.Data
         ///     графе, как правило, является простой цикл. Мощность подмножества простых циклов в графе меньше мощности множества
         ///     квазициклов.
         /// </summary>
-        public bool IsSimpleCircle()
+        /// <param name="circle"></param>
+        public static bool IsSimple(Circle circle)
         {
-            return Distinct().Count() == Count;
+            return circle.Distinct().Count() == circle.Count;
+        }
+        public static bool IsNotSimple(Circle circle)
+        {
+            return circle.Distinct().Count() != circle.Count;
         }
 
         /// <summary>
@@ -125,7 +130,7 @@ namespace PlanarGraph.Data
         /// <param name="graph"></param>
         /// <param name="cachedGraphAllPaths"></param>
         /// <returns></returns>
-        public bool IsTauCircle(Graph graph,
+        public bool IsTau(Graph graph,
             Dictionary<int, PathDictionary> cachedGraphAllPaths)
         {
             Dictionary<KeyValuePair<Vertex, Vertex>, int> minPathLengths = graph.GetMinPathLengths(this,

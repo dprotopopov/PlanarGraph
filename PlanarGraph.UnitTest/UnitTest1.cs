@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using MyCudafy;
 using MyCudafy.Collections;
-using PlanarGraph.Algorithm;
 using MyLibrary.Array;
+using MyMath.GF2;
+using PlanarGraph.Algorithm;
 using PlanarGraph.Collections;
 using PlanarGraph.Data;
-using PlanarGraph.GF2;
-using MyCudafy;
 
 namespace PlanarGraph.UnitTest
 {
@@ -156,7 +156,7 @@ namespace PlanarGraph.UnitTest
             graph.Add(new Circle(new VertexUnsortedCollection(new StackListQueue<int> {1, 4, 6, 5})));
             var path = new Path();
             path.Add(new VertexUnsortedCollection(new StackListQueue<int> {1, 6, 4, 5, 1}));
-            IEnumerable<Path> paths = path.SplitBy(graph);
+            IEnumerable<Path> paths = graph.Split(path);
             Console.WriteLine(string.Join(Environment.NewLine, paths.Select(item => item.ToString())));
             Assert.AreEqual(2, paths.Count());
         }
@@ -294,7 +294,7 @@ namespace PlanarGraph.UnitTest
                 Console.WriteLine(circle);
                 Dictionary<KeyValuePair<Vertex, Vertex>, int> minPathLengths = graph.GetMinPathLengths(circle,
                     cachedAllGraphPaths);
-                Console.WriteLine(@"IsTauCircle = " + circle.IsTauCircle(graph, cachedAllGraphPaths));
+                Console.WriteLine(@"IsTau = " + circle.IsTau(graph, cachedAllGraphPaths));
                 foreach (var pair in minPathLengths)
                 {
                     Console.WriteLine("{0}=>{1}", pair.Key, pair.Value);
@@ -399,7 +399,7 @@ namespace PlanarGraph.UnitTest
         }
 
         [TestMethod]
-        public void TestCudafyCanonical()
+        public void TestCudafyGaussJordan()
         {
             var random = new Random();
             for (int k = 0; k < 10; k++)
@@ -417,7 +417,7 @@ namespace PlanarGraph.UnitTest
                         new ArrayOfArray<int>(matrix.Select(vector => vector.Select(b => b ? 1 : 0).ToArray()).ToArray())
                             .ToTwoDimensional());
 
-                    CudafyMatrix.ExecuteCanonical();
+                    CudafyMatrix.ExecuteGaussJordan();
 
                     list2 = new StackListQueue<int>(CudafyMatrix.GetIndexes()
                         .Select((first, row) => new KeyValuePair<int, int>(row, first))

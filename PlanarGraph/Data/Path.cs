@@ -14,10 +14,6 @@ namespace PlanarGraph.Data
     /// </summary>
     public class Path : VertexUnsortedCollection, IElement
     {
-        public override StackListQueue<int> GetInts(Vertex values)
-        {
-            return new StackListQueue<int> { values.Id };
-        }
         public Path(IEnumerable<Vertex> list)
             : base(list)
         {
@@ -105,6 +101,21 @@ namespace PlanarGraph.Data
                    Enumerable.Range(0, Count - 1).All(i => children[this[i]].Contains(this[i + 1]));
         }
 
+        public override StackListQueue<int> GetInts(Vertex values)
+        {
+            return new StackListQueue<int> {values.Id};
+        }
+
+        public new int IndexOf(Vertex item)
+        {
+            return base.IndexOf(item);
+        }
+
+        public static bool IsSimple(IEnumerable<Vertex> path)
+        {
+            return path.Distinct().Count() == path.Count();
+        }
+
         public override string ToString()
         {
             return string.Format("<{0}>", base.ToString());
@@ -149,55 +160,6 @@ namespace PlanarGraph.Data
         {
             return from.Contains(this.First()) &&
                    to.Contains(this.Last());
-        }
-
-        public IEnumerable<Path> SplitBy(Graph graph)
-        {
-            Debug.Assert(Count >= 2);
-            var list = new StackListQueue<Path>();
-            StackListQueue<int> indexes;
-            try
-            {
-                int[,] matrix;
-                lock (CudafySequencies.Semaphore)
-                {
-                    CudafySequencies.SetSequencies(
-                        graph.Vertices.Select(GetInts).Select(item => item.ToArray()).ToArray(),
-                        GetRange(1, Count - 2).Select(GetInts).Select(item => item.ToArray()).ToArray()
-                        );
-                    CudafySequencies.Execute("Compare");
-                    matrix = CudafySequencies.GetMatrix();
-                }
-                lock (CudafyMatrix.Semaphore)
-                {
-                    CudafyMatrix.SetMatrix(matrix);
-                    CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
-                    indexes = new StackListQueue<int>(CudafyMatrix.GetIndexes()
-                        .Where(index => index >= 0)
-                        .Select(index => index + 1));
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.ToString());
-                indexes =
-                    new StackListQueue<int>(GetRange(1, Count - 2).Intersect(graph.Vertices).Select(v => IndexOf(v)));
-            }
-            indexes.Sort();
-            indexes.Prepend(0);
-            indexes.Append(Count - 1);
-            Dictionary<Vertex, VertexSortedCollection> children = graph.Children;
-            for (int prev = indexes.Dequeue(); indexes.Any(); prev = indexes.Dequeue())
-            {
-                if (((prev + 1) == indexes[0])
-                    && children.ContainsKey(this[prev])
-                    && children[this[prev]].Contains(this[indexes[0]]))
-                    continue;
-                list.Add(new Path(GetRange(prev, indexes[0] - prev + 1)));
-            }
-            Debug.WriteLineIf(list.Any(), this + " split by " + graph + " is " +
-                                          string.Join(",", list.Select(item => item.ToString())));
-            return list;
         }
 
         public static bool IsNoVertix(Path path)
@@ -255,6 +217,17 @@ namespace PlanarGraph.Data
             Debug.WriteLineIf(list.Any(), this + " split by " + segment + " is " +
                                           string.Join(",", list.Select(item => item.ToString())));
             return list;
+        }
+
+        public static bool IsLong(Path arg)
+        {
+            return arg.Count > 2;
+        }
+
+        public IEnumerable<Path> SplitBy(Vertex vertex)
+        {
+            int index = IndexOf(vertex);
+            return new StackListQueue<Path>(new Path(GetRange(0, index + 1))) {new Path(GetRange(index, Count - index))};
         }
     }
 }

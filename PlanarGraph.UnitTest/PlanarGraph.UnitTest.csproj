@@ -104,13 +104,17 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\MyLibrary\MyCudafy\MyCudafy.csproj">
+    <ProjectReference Include="..\..\MyCudafyLibrary\MyCudafy\MyCudafy.csproj">
       <Project>{325a76ab-5185-432d-be58-8c6dda03c458}</Project>
       <Name>MyCudafy</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\MyLibrary\MyLibrary\MyLibrary.csproj">
       <Project>{e80cf993-5e07-4875-85fe-a2adcf76558d}</Project>
       <Name>MyLibrary</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\MyMathLibrary\MyMath\MyMath.csproj">
+      <Project>{5f759e1e-27bb-4127-ae22-d220f6afbc71}</Project>
+      <Name>MyMath</Name>
     </ProjectReference>
     <ProjectReference Include="..\PlanarGraph\PlanarGraph.csproj">
       <Project>{2ab016de-b835-40f1-96d3-a62e3eccebe6}</Project>

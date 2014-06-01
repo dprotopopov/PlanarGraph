@@ -16,5 +16,10 @@ namespace PlanarGraph.Collections
         public PathDictionary()
         {
         }
+
+        public PathDictionary(KeyValuePair<Vertex, Vertex> pair, PathCollection pathCollection)
+        {
+            Add(pair, pathCollection);
+        }
     }
 }

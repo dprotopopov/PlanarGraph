@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using MyCudafy;
 using MyCudafy.Collections;
+using MyMath.GF2;
 using PlanarGraph.Collections;
 using PlanarGraph.Comparer;
-using PlanarGraph.GF2;
 
 namespace PlanarGraph.Data
 {
@@ -85,16 +86,16 @@ namespace PlanarGraph.Data
         {
             get
             {
-                return this.Select(segment => segment.First())
-                    .Union(this.Select(segment => segment.Last()))
+                return this.Select(Enumerable.First)
+                    .Union(this.Select(Enumerable.Last))
                     .Distinct()
                     .ToDictionary(
                         vertex => vertex,
                         vertex => new VertexSortedCollection(
                             this.Where(segment => segment.First().Equals(vertex)).
-                                Select(segment => segment.Last())
+                                Select(Enumerable.Last)
                                 .Union(this.Where(segment => segment.Last().Equals(vertex)).
-                                    Select(segment => segment.First()))));
+                                    Select(Enumerable.First))));
             }
         }
 
@@ -196,13 +197,13 @@ namespace PlanarGraph.Data
         ///     случае.
         ///     В дальнейшем для удобства будем отождествлять пространство суграфов LG и его координатное пространство.
         /// </summary>
-        /// <param name="booleanVector"></param>
+        /// <param name="BooleanVector"></param>
         /// <returns></returns>
-        public Graph Sugraph(BooleanVector booleanVector)
+        public Graph Sugraph(BooleanVector BooleanVector)
         {
-            Debug.Assert(booleanVector.Count <= Count);
-            int count = booleanVector.Count;
-            return new Graph(this.Where((item, index) => index < count && booleanVector[index]));
+            Debug.Assert(BooleanVector.Count <= Count);
+            int count = BooleanVector.Count;
+            return new Graph(this.Where((item, index) => index < count && BooleanVector[index]));
         }
 
         public BooleanVector GetVector(Circle circle)
@@ -244,11 +245,12 @@ namespace PlanarGraph.Data
             }
             indexes.Sort();
             var booleanVector = new BooleanVector();
-            booleanVector.AddRange(Enumerable.Repeat(false, indexes[0]));
+            if (indexes[0] > 0) booleanVector.AddRange(Enumerable.Repeat(false, indexes[0]));
             booleanVector.Add(true);
-            for (int i = 1; i < count; i++)
+            for (int i = 1; i < indexes.Count; i++)
             {
-                booleanVector.AddRange(Enumerable.Repeat(false, indexes[i] - indexes[i - 1] - 1));
+                if (indexes[i] - indexes[i - 1] > 1)
+                    booleanVector.AddRange(Enumerable.Repeat(false, indexes[i] - indexes[i - 1] - 1));
                 booleanVector.Add(true);
             }
             return booleanVector;
@@ -332,100 +334,93 @@ namespace PlanarGraph.Data
         /// <returns></returns>
         public Dictionary<int, PathDictionary> GetAllGraphPaths()
         {
-            Dictionary<Vertex, VertexSortedCollection> children = Children;
+            var vertices = new StackListQueue<Vertex>(Vertices);
 
-            var dictionary = new Dictionary<int, PathDictionary>();
-            if (!Vertices.Any()) return dictionary;
-            dictionary.Add(1, new PathDictionary(Vertices.Select(
-                vertix =>
-                    new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
-                        new KeyValuePair<Vertex, Vertex>(vertix, vertix),
-                        new PathCollection(new Path(vertix))))));
-            if (Vertices.Count() == 1) return dictionary;
-            dictionary.Add(2, new PathDictionary(children.SelectMany(pair => pair.Value.Select(
-                vertix => new KeyValuePair<KeyValuePair<Vertex, Vertex>, PathCollection>(
-                    new KeyValuePair<Vertex, Vertex>(pair.Key, vertix),
-                    new PathCollection(new Path(pair.Key, vertix)))))));
-            if (Vertices.Count() == 2) return dictionary;
-            for (int i = 3; i <= Vertices.Count() + 1; i++)
+            var prev = new PathCollection[vertices.Count, vertices.Count];
+            var next = new PathCollection[vertices.Count, vertices.Count];
+
+            var read = new object();
+            var write = new object();
+
+            Parallel.ForEach(
+                from i in Enumerable.Range(0, vertices.Count)
+                from j in Enumerable.Range(0, vertices.Count)
+                select new[] {i, j},
+                pair =>
+                {
+                    int i = pair[0];
+                    int j = pair[1];
+                    lock (write) prev[i, j] = new PathCollection();
+                    lock (write) next[i, j] = new PathCollection();
+                });
+            Parallel.ForEach(
+                this,
+                segment =>
+                {
+                    int i, j;
+                    lock (read) i = vertices.IndexOf(segment.First());
+                    lock (read) j = vertices.IndexOf(segment.Last());
+                    lock (write) prev[i, j].Add(new Path(segment));
+                    lock (write) prev[j, i].Add(new Path(segment.GetReverse()));
+                });
+
+            for (int m = 0; m < vertices.Count; m++)
             {
-                var pathDictionary = new PathDictionary();
-                int i1 = (i + 1) >> 1;
-                int i2 = (i + 1) - i1;
-                PathDictionary dictionary1 = dictionary[i1];
-                PathDictionary dictionary2 = dictionary[i2];
-                foreach (Vertex vertex1 in Vertices)
-                    foreach (Vertex vertex2 in Vertices)
-                        foreach (Vertex vertex12 in Vertices)
+                Parallel.ForEach(
+                    from i in Enumerable.Range(0, vertices.Count)
+                    from j in Enumerable.Range(0, vertices.Count)
+                    select new[] {i, j},
+                    pair =>
+                    {
+                        PathCollection fromTo;
+                        int i = pair[0];
+                        int j = pair[1];
+                        lock (read) fromTo = new PathCollection(prev[i, j]);
+                        if (i != m && j != m)
                         {
-                            if (vertex1.Equals(vertex12) || vertex2.Equals(vertex12)) continue;
-
-                            var pair1 = new KeyValuePair<Vertex, Vertex>(vertex1, vertex12);
-                            var pair2 = new KeyValuePair<Vertex, Vertex>(vertex12, vertex2);
-                            if ((!dictionary1.ContainsKey(pair1)) || (!dictionary2.ContainsKey(pair2))) continue;
-                            var pair = new KeyValuePair<Vertex, Vertex>(vertex1, vertex2);
-                            PathCollection paths = pathDictionary.ContainsKey(pair)
-                                ? pathDictionary[pair]
-                                : new PathCollection();
-                            PathCollection paths1 = dictionary1[pair1];
-                            PathCollection paths2 = dictionary2[pair2];
-                            Debug.WriteLine("paths1:" +
-                                            string.Join(Environment.NewLine, paths1.Select(path => path.ToString())));
-                            Debug.WriteLine("paths2:" +
-                                            string.Join(Environment.NewLine, paths2.Select(path => path.ToString())));
-                            try
-                            {
-                                int[,] matrix;
-                                lock (CudafySequencies.Semaphore)
-                                {
-                                    CudafySequencies.SetSequencies(
-                                        paths1.Select(
-                                            path =>
-                                                path.Select(vertex => vertex.Id).ToArray())
-                                            .ToArray(),
-                                        paths2.Select(
-                                            path =>
-                                                path.Select(vertex => vertex.Id).ToArray())
-                                            .ToArray()
-                                        );
-                                    CudafySequencies.Execute("CountIntersections");
-                                    matrix = CudafySequencies.GetMatrix();
-                                }
-#if DEBUG                      
-                                for (int a = 0; a < matrix.GetLength(0); a++)
-                                    for (int b = 0; b < matrix.GetLength(1); b++)
-                                    {
-                                        Debug.Assert(matrix[a, b] > 0);
-                                    }
-#endif
-                                paths.AddRangeExcept(paths1.SelectMany(
-                                    (values1, index1) =>
-                                        paths2.Select((values2, index2) => new {index1, index2, values1, values2}))
-                                    .Where(p => (matrix[p.index1, p.index2] == 1)
-                                                || (i > 3 && matrix[p.index1, p.index2] == 2 &&
-                                                    p.values1.First().Equals(p.values2.Last())))
-                                    .Select(p =>
-                                        new Path(p.values1.GetRange(0, i1 - 1)) {p.values2}));
-                                Debug.WriteLine("paths:" +
-                                                string.Join(Environment.NewLine, paths.Select(path => path.ToString())));
-                            }
-                            catch (Exception ex)
-                            {
-                                Debug.WriteLine(ex.ToString());
-                                paths.AddRangeExcept(from path1 in paths1
-                                    from path2 in paths2
-                                    where !path1.GetRange(0, i1 - 1).Intersect(path2.GetRange(0, i2 - 1)).Any()
-                                          && !path1.GetRange(1, i1 - 1).Contains(path2.Last())
-                                    select new Path(path1.GetRange(0, i1 - 1)) {path2});
-                            }
-                            paths.ReplaceAll(paths.Distinct());
-                            if (!paths.Any()) continue;
-                            if (pathDictionary.ContainsKey(pair)) pathDictionary[pair].AddRangeExcept(paths);
-                            else pathDictionary.Add(pair, paths);
+                            PathCollection fr, to;
+                            lock (read) fr = new PathCollection(prev[i, m]);
+                            lock (read) to = new PathCollection(prev[m, j]);
+                            var passThrow = new PathCollection(
+                                from a in fr
+                                from b in to
+                                select new Path(a) {b.GetRange(1, b.Count - 1)});
+                            passThrow.RemoveAll(path => !Path.IsSimple(new Path(path.GetRange(0, path.Count - 1))));
+                            passThrow.RemoveAll(path => !Path.IsSimple(new Path(path.GetRange(1, path.Count - 1))));
+                            fromTo.Add(passThrow);
                         }
-                if (!pathDictionary.Any()) break;
-                dictionary.Add(i, pathDictionary);
+                        lock (write) next[i, j] = fromTo;
+                    });
+                PathCollection[,] t = prev;
+                prev = next;
+                next = t;
             }
+            var dictionaries = new Dictionary<int, PathDictionary>[vertices.Count, vertices.Count];
+            Parallel.ForEach(
+                from i in Enumerable.Range(0, vertices.Count)
+                from j in Enumerable.Range(0, vertices.Count)
+                select new[] {i, j},
+                pair =>
+                {
+                    int i = pair[0];
+                    int j = pair[1];
+                    KeyValuePair<Vertex, Vertex> key;
+                    PathCollection collection;
+                    lock (read) key = new KeyValuePair<Vertex, Vertex>(vertices.ElementAt(i), vertices.ElementAt(j));
+                    lock (read) collection = prev[i, j];
+                    Dictionary<int, PathDictionary> dictionary1 = Enumerable.Range(2, vertices.Count)
+                        .ToDictionary(len => len,
+                            len => new PathDictionary(key, new PathCollection(collection.Where(p => p.Count == len))));
+                    lock (write) dictionaries[i, j] = dictionary1;
+                });
+            var dictionary = new Dictionary<int, PathDictionary>();
+            foreach (var pair in dictionaries)
+                foreach (int i in pair.Keys)
+                    if (!dictionary.ContainsKey(i)) dictionary.Add(i, pair[i]);
+                    else
+                        foreach (var key in pair[i].Keys)
+                            if (!dictionary[i].ContainsKey(key)) dictionary[i].Add(key, pair[i][key]);
+                            else dictionary[i][key].AddRange(pair[i][key]);
             return dictionary;
         }
 
@@ -464,17 +459,15 @@ namespace PlanarGraph.Data
 
         public void RemoveIntermedians()
         {
-            for (IEnumerable<Segment> segments = this.SelectMany(segment => segment)
-                .Distinct()
-                .Where(vertix => this.Count(segment2 => segment2.Contains(vertix)) == 1)
-                .SelectMany(vertix => this.Where(segment2 => segment2.Contains(vertix)));
-                segments.Any();
-                segments = this.SelectMany(segment => segment)
-                    .Distinct()
-                    .Where(vertix => this.Count(segment2 => segment2.Contains(vertix)) == 1)
-                    .SelectMany(vertix => this.Where(segment2 => segment2.Contains(vertix))))
-                foreach (Segment segment in segments)
-                    Remove(segment);
+            for (Vertex v = Vertices.FirstOrDefault(vertex => this.Count(vertex.BelongsTo) == 2);
+                v != null;
+                v = Vertices.FirstOrDefault(vertex => this.Count(vertex.BelongsTo) == 2))
+            {
+                var vv = new StackListQueue<Vertex>(this.Where(v.BelongsTo).SelectMany(s => s));
+                vv.RemoveAll(v.Equals);
+                RemoveAll(v.BelongsTo);
+                Add(new Segment(vv));
+            }
         }
 
         /// <summary>
@@ -482,15 +475,9 @@ namespace PlanarGraph.Data
         /// </summary>
         public void RemoveAllTrees()
         {
-            for (List<Segment> segments = this.Where(
-                segment2 => segment2.Any(
-                    vertex => this.Count(segment1 => segment1.Contains(vertex)) == 1)).ToList();
-                segments.Any();
-                segments = this.Where(
-                    segment2 => segment2.Any(
-                        vertex => this.Count(segment1 => segment1.Contains(vertex)) == 1)).ToList())
-                foreach (Segment segment in segments)
-                    Remove(segment);
+            // Удаляем по-листочку
+            while (RemoveAll(segment => segment.Any(
+                vertex => this.Count(vertex.BelongsTo) == 1)) != 0) ;
         }
 
         public override string ToString()
@@ -575,5 +562,66 @@ namespace PlanarGraph.Data
                 .Where(pair => pair.Value.Any())
                 .ToDictionary(pair => pair.Key, pair => pair.Value));
         }
+        public Graph GetSubgraph(StackListQueue<Vertex> vertices, IEnumerable<Vertex> bridges)
+        {
+            return new Graph(Children.Where(pair => vertices.Contains(pair.Key))
+                .Select(pair => new KeyValuePair<Vertex, VertexSortedCollection>(pair.Key
+                    , new VertexSortedCollection(pair.Value.Intersect(bridges))))
+                .Where(pair => pair.Value.Any())
+                .ToDictionary(pair => pair.Key, pair => pair.Value));
+        }
+
+        public IEnumerable<Path> Split(Path path)
+        {
+            Debug.Assert(Count >= 2);
+            var list = new StackListQueue<Path>();
+            StackListQueue<int> indexes;
+            try
+            {
+                int[,] matrix;
+                lock (CudafySequencies.Semaphore)
+                {
+                    CudafySequencies.SetSequencies(
+                        Vertices.Select(path.GetInts).Select(item => item.ToArray()).ToArray(),
+                        path.GetRange(1, Count - 2).Select(path.GetInts).Select(item => item.ToArray()).ToArray()
+                        );
+                    CudafySequencies.Execute("Compare");
+                    matrix = CudafySequencies.GetMatrix();
+                }
+                lock (CudafyMatrix.Semaphore)
+                {
+                    CudafyMatrix.SetMatrix(matrix);
+                    CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
+                    indexes = new StackListQueue<int>(CudafyMatrix.GetIndexes()
+                        .Where(index => index >= 0)
+                        .Select(index => index + 1));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.ToString());
+                indexes =
+                    new StackListQueue<int>(
+                        path.GetRange(1, Count - 2)
+                            .Intersect(Vertices)
+                            .Select(v => path.IndexOf(v)));
+            }
+            indexes.Sort();
+            indexes.Prepend(0);
+            indexes.Append(Count - 1);
+            Dictionary<Vertex, VertexSortedCollection> children = Children;
+            for (int prev = indexes.Dequeue(); indexes.Any(); prev = indexes.Dequeue())
+            {
+                if (((prev + 1) == indexes[0])
+                    && children.ContainsKey(path[prev])
+                    && children[path[prev]].Contains(path[indexes[0]]))
+                    continue;
+                list.Add(new Path(path.GetRange(prev, indexes[0] - prev + 1)));
+            }
+            Debug.WriteLineIf(list.Any(), path + " split by " + this + " is " +
+                                          string.Join(",", list.Select(item => item.ToString())));
+            return list;
+        }
+
     }
 }
