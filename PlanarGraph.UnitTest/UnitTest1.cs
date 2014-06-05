@@ -441,7 +441,7 @@ namespace PlanarGraph.UnitTest
                 for (int i = matrix.Count; i-- > 0;)
                 {
                     BooleanVector vector = matrix.Dequeue();
-                    if (vector.IsZero()) continue;
+                    if (BooleanVector.IsZero(vector)) continue;
                     matrix.Enqueue(vector);
                 }
                 for (int i = matrix.Count; i-- > 0;)
@@ -455,7 +455,7 @@ namespace PlanarGraph.UnitTest
                         {
                             vector1 = BooleanVector.Xor(vector1, vector);
                         }
-                        if (vector1.IsZero()) continue;
+                        if (BooleanVector.IsZero(vector1)) continue;
                         matrix.Enqueue(vector1);
                     }
                     matrix.Enqueue(vector);

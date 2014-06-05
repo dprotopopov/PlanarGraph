@@ -198,7 +198,7 @@ namespace PlanarGraph.Algorithm
                         for (int i = booleanMatrix.Count; i-- > 0;)
                         {
                             BooleanVector vector = booleanMatrix.Dequeue();
-                            if (vector.IsZero()) continue;
+                            if (BooleanVector.IsZero(vector)) continue;
                             booleanMatrix.Enqueue(vector);
                         }
                         //matrix.Sort(BooleanVectorComparer);
@@ -213,7 +213,7 @@ namespace PlanarGraph.Algorithm
                                 {
                                     vector1 = BooleanVector.Xor(vector1, vector);
                                 }
-                                if (vector1.IsZero()) continue;
+                                if (BooleanVector.IsZero(vector1)) continue;
                                 booleanMatrix.Enqueue(vector1);
                             }
                             booleanMatrix.Enqueue(vector);
