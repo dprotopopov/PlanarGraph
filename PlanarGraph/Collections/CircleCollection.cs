@@ -5,7 +5,7 @@ using PlanarGraph.Data;
 
 namespace PlanarGraph.Collections
 {
-    internal class CircleCollection : SortedStackListQueue<Circle>
+    internal class CircleCollection : MyLibrary.Collections.SortedStackListQueue<Circle>
     {
         public CircleCollection()
         {
@@ -17,9 +17,9 @@ namespace PlanarGraph.Collections
             return base.Equals(obj);
         }
 
-        public override StackListQueue<int> GetInts(Circle values)
+        public override MyLibrary.Collections.StackListQueue<int> GetInts(Circle values)
         {
-            return new StackListQueue<int>(values.Select(value => value.Id));
+            return new MyLibrary.Collections.StackListQueue<int>(values.Select(value => value.Id));
         }
 
         public override int GetHashCode()

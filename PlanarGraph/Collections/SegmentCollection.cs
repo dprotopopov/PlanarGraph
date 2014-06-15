@@ -6,7 +6,7 @@ using PlanarGraph.Data;
 
 namespace PlanarGraph.Collections
 {
-    public class SegmentCollection : SortedStackListQueue<Segment>
+    public class SegmentCollection : MyLibrary.Collections.SortedStackListQueue<Segment>
     {
         private static readonly SegmentComparer SegmentComparer = new SegmentComparer();
 
@@ -37,7 +37,7 @@ namespace PlanarGraph.Collections
             base.AddRangeExcept(segments.Where(segment => !segment.First().Equals(segment.Last())));
         }
 
-        public override StackListQueue<int> GetInts(Segment values)
+        public override MyLibrary.Collections.StackListQueue<int> GetInts(Segment values)
         {
             return new StackListQueue<int>(values.Select(value => value.Id));
         }

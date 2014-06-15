@@ -6,7 +6,7 @@ using PlanarGraph.Data;
 
 namespace PlanarGraph.Collections
 {
-    public class VertexSortedCollection : SortedStackListQueue<Vertex>
+    public class VertexSortedCollection : MyLibrary.Collections.SortedStackListQueue<Vertex>
     {
         private static readonly VertexComparer VertexComparer = new VertexComparer();
 
@@ -37,9 +37,9 @@ namespace PlanarGraph.Collections
             return base.GetHashCode();
         }
 
-        public override StackListQueue<int> GetInts(Vertex values)
+        public override MyLibrary.Collections.StackListQueue<int> GetInts(Vertex values)
         {
-            return new StackListQueue<int> {values.Id};
+            return new MyLibrary.Collections.StackListQueue<int> { values.Id };
         }
     }
 }

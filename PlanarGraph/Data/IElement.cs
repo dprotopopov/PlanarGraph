@@ -2,6 +2,9 @@
 
 namespace PlanarGraph.Data
 {
+    /// <summary>
+    ///     Набор методов, которые могут быть реализованы в классах работы с графами, сегментами, циклами и т.д.
+    /// </summary>
     public interface IElement
     {
         bool BelongsTo(Graph graph);

@@ -5,7 +5,7 @@ using PlanarGraph.Data;
 
 namespace PlanarGraph.Collections
 {
-    public class VertexUnsortedCollection : StackListQueue<Vertex>
+    public class VertexUnsortedCollection : MyLibrary.Collections.StackListQueue<Vertex>
     {
         public VertexUnsortedCollection(IEnumerable<int> list)
         {
@@ -41,9 +41,9 @@ namespace PlanarGraph.Collections
             return base.GetHashCode();
         }
 
-        public override StackListQueue<int> GetInts(Vertex values)
+        public override MyLibrary.Collections.StackListQueue<int> GetInts(Vertex values)
         {
-            return new StackListQueue<int> {values.Id};
+            return new MyLibrary.Collections.StackListQueue<int> { values.Id };
         }
 
         public override string ToString()

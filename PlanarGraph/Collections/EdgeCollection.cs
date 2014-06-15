@@ -6,7 +6,7 @@ using PlanarGraph.Data;
 
 namespace PlanarGraph.Collections
 {
-    public class EdgeCollection : SortedStackListQueue<Edge>
+    public class EdgeCollection : MyLibrary.Collections.SortedStackListQueue<Edge>
     {
         private static readonly EdgeComparer EdgeComparer = new EdgeComparer();
 
@@ -21,9 +21,9 @@ namespace PlanarGraph.Collections
             Comparer = EdgeComparer;
         }
 
-        public override StackListQueue<int> GetInts(Edge values)
+        public override MyLibrary.Collections.StackListQueue<int> GetInts(Edge values)
         {
-            return new StackListQueue<int>(values.Select(value => value.Id));
+            return new MyLibrary.Collections.StackListQueue<int>(values.Select(value => value.Id));
         }
 
         public override bool Equals(object obj)

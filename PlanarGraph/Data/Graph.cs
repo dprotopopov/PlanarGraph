@@ -14,7 +14,7 @@ namespace PlanarGraph.Data
 {
     /// <summary>
     ///     Класс графа без петель и кратных ребер
-    ///     Граф является набором вершин и сегментов
+    ///     Граф является набором сегментов
     ///     Каждый сегмент состоит из двух вершин
     /// </summary>
     public class Graph : SegmentCollection, IElement
@@ -82,6 +82,9 @@ namespace PlanarGraph.Data
             Add(path);
         }
 
+        /// <summary>
+        ///     Словарь связей узлов с другими узлами
+        /// </summary>
         public Dictionary<Vertex, VertexSortedCollection> Children
         {
             get
@@ -217,30 +220,35 @@ namespace PlanarGraph.Data
             }
             Debug.Assert(collection.All(Contains));
             List<int> indexes;
-            try
-            {
-                IEnumerable<IEnumerable<int>> list1 = collection.Select(GetInts);
-                IEnumerable<IEnumerable<int>> list2 = this.Select(GetInts);
-                int[,] matrix;
-                lock (CudafySequencies.Semaphore)
+            if (Settings.EnableCudafy)
+                try
                 {
-                    CudafySequencies.SetSequencies(
-                        list1.Select(item => item.ToArray()).ToArray(),
-                        list2.Select(item => item.ToArray()).ToArray()
-                        );
-                    CudafySequencies.Execute("Compare");
-                    matrix = CudafySequencies.GetMatrix();
+                    IEnumerable<IEnumerable<int>> list1 = collection.Select(GetInts);
+                    IEnumerable<IEnumerable<int>> list2 = this.Select(GetInts);
+                    int[,] matrix;
+                    lock (CudafySequencies.Semaphore)
+                    {
+                        CudafySequencies.SetSequencies(
+                            list1.Select(item => item.ToArray()).ToArray(),
+                            list2.Select(item => item.ToArray()).ToArray()
+                            );
+                        CudafySequencies.Execute("Compare");
+                        matrix = CudafySequencies.GetMatrix();
+                    }
+                    lock (CudafyMatrix.Semaphore)
+                    {
+                        CudafyMatrix.SetMatrix(matrix);
+                        CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
+                        indexes = CudafyMatrix.GetIndexes().ToList();
+                    }
                 }
-                lock (CudafyMatrix.Semaphore)
+                catch (Exception ex)
                 {
-                    CudafyMatrix.SetMatrix(matrix);
-                    CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
-                    indexes = CudafyMatrix.GetIndexes().ToList();
+                    Debug.WriteLine(ex.ToString());
+                    indexes = collection.Select(segment => IndexOf(segment)).ToList();
                 }
-            }
-            catch (Exception ex)
+            else
             {
-                Debug.WriteLine(ex.ToString());
                 indexes = collection.Select(segment => IndexOf(segment)).ToList();
             }
             indexes.Sort();
@@ -299,9 +307,9 @@ namespace PlanarGraph.Data
 
         #endregion
 
-        public override StackListQueue<int> GetInts(Segment values)
+        public override MyLibrary.Collections.StackListQueue<int> GetInts(Segment values)
         {
-            return new StackListQueue<int>(values.Select(value => value.Id));
+            return new MyLibrary.Collections.StackListQueue<int>(values.Select(value => value.Id));
         }
 
         public static Dictionary<int, PathDictionary> GetSubgraphPaths(
@@ -330,6 +338,7 @@ namespace PlanarGraph.Data
 
         /// <summary>
         ///     Получение всех путей в графе
+        ///     Алгоритм является модификацией алгоритма Флойда
         /// </summary>
         /// <returns></returns>
         public Dictionary<int, PathDictionary> GetAllGraphPaths()
@@ -435,6 +444,13 @@ namespace PlanarGraph.Data
             return Vertices.GetHashCode() ^ base.GetHashCode();
         }
 
+        /// <summary>
+        ///     Генерация случайного графа
+        ///     Количество сегментов не может быть больше n*(n - 1)/2
+        /// </summary>
+        /// <param name="n">Количество вершин</param>
+        /// <param name="m">Количество сегментов</param>
+        /// <returns></returns>
         public static Graph Random(int n, int m)
         {
             var graph = new Graph();
@@ -457,6 +473,10 @@ namespace PlanarGraph.Data
             return graph;
         }
 
+        /// <summary>
+        ///     Удаление промежуточных точек в графе
+        ///     то есть точек, которые являются соединением только двух сегментов
+        /// </summary>
         public void RemoveIntermedians()
         {
             for (Vertex v = Vertices.FirstOrDefault(vertex => this.Count(vertex.BelongsTo) == 2);
@@ -554,6 +574,11 @@ namespace PlanarGraph.Data
                     pair => fromTo.Where(p2 => p2.Key.Key == pair.Key && p2.Key.Value == pair.Value).Min(p => p.Value));
         }
 
+        /// <summary>
+        ///     Выделение в графе подграфа, соединяющего только указанный список узлов
+        /// </summary>
+        /// <param name="vertices"></param>
+        /// <returns></returns>
         public Graph GetSubgraph(IEnumerable<Vertex> vertices)
         {
             return new Graph(Children.Where(pair => vertices.Contains(pair.Key))
@@ -562,6 +587,7 @@ namespace PlanarGraph.Data
                 .Where(pair => pair.Value.Any())
                 .ToDictionary(pair => pair.Key, pair => pair.Value));
         }
+
         public Graph GetSubgraph(StackListQueue<Vertex> vertices, IEnumerable<Vertex> bridges)
         {
             return new Graph(Children.Where(pair => vertices.Contains(pair.Key))
@@ -571,41 +597,53 @@ namespace PlanarGraph.Data
                 .ToDictionary(pair => pair.Key, pair => pair.Value));
         }
 
+        /// <summary>
+        ///     Разбиение пути в точках перечечения пути с графом на отдельные подпути
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
         public IEnumerable<Path> Split(Path path)
         {
             Debug.Assert(Count >= 2);
             var list = new StackListQueue<Path>();
             StackListQueue<int> indexes;
-            try
-            {
-                int[,] matrix;
-                lock (CudafySequencies.Semaphore)
+            if (Settings.EnableCudafy)
+                try
                 {
-                    CudafySequencies.SetSequencies(
-                        Vertices.Select(path.GetInts).Select(item => item.ToArray()).ToArray(),
-                        path.GetRange(1, Count - 2).Select(path.GetInts).Select(item => item.ToArray()).ToArray()
-                        );
-                    CudafySequencies.Execute("Compare");
-                    matrix = CudafySequencies.GetMatrix();
+                    int[,] matrix;
+                    lock (CudafySequencies.Semaphore)
+                    {
+                        CudafySequencies.SetSequencies(
+                            Vertices.Select(path.GetInts).Select(item => item.ToArray()).ToArray(),
+                            path.GetRange(1, Count - 2).Select(path.GetInts).Select(item => item.ToArray()).ToArray()
+                            );
+                        CudafySequencies.Execute("Compare");
+                        matrix = CudafySequencies.GetMatrix();
+                    }
+                    lock (CudafyMatrix.Semaphore)
+                    {
+                        CudafyMatrix.SetMatrix(matrix);
+                        CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
+                        indexes = new StackListQueue<int>(CudafyMatrix.GetIndexes()
+                            .Where(index => index >= 0)
+                            .Select(index => index + 1));
+                    }
                 }
-                lock (CudafyMatrix.Semaphore)
+                catch (Exception ex)
                 {
-                    CudafyMatrix.SetMatrix(matrix);
-                    CudafyMatrix.ExecuteRepeatZeroIndexOfZero();
-                    indexes = new StackListQueue<int>(CudafyMatrix.GetIndexes()
-                        .Where(index => index >= 0)
-                        .Select(index => index + 1));
+                    Debug.WriteLine(ex.ToString());
+                    indexes =
+                        new StackListQueue<int>(
+                            path.GetRange(1, Count - 2)
+                                .Intersect(Vertices)
+                                .Select(v => path.IndexOf(v)));
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.ToString());
+            else
                 indexes =
                     new StackListQueue<int>(
                         path.GetRange(1, Count - 2)
                             .Intersect(Vertices)
                             .Select(v => path.IndexOf(v)));
-            }
             indexes.Sort();
             indexes.Prepend(0);
             indexes.Append(Count - 1);
@@ -622,6 +660,5 @@ namespace PlanarGraph.Data
                                           string.Join(",", list.Select(item => item.ToString())));
             return list;
         }
-
     }
 }

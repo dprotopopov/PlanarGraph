@@ -101,9 +101,9 @@ namespace PlanarGraph.Data
                    Enumerable.Range(0, Count - 1).All(i => children[this[i]].Contains(this[i + 1]));
         }
 
-        public override StackListQueue<int> GetInts(Vertex values)
+        public override MyLibrary.Collections.StackListQueue<int> GetInts(Vertex values)
         {
-            return new StackListQueue<int> {values.Id};
+            return new MyLibrary.Collections.StackListQueue<int> { values.Id };
         }
 
         public new int IndexOf(Vertex item)

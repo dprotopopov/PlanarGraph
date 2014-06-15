@@ -1,17 +1,21 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
+using MyCudafy;
+using MyLibrary.Worker;
 using PlanarGraph.Algorithm;
 using PlanarGraph.Data;
-using MyLibrary.Worker;
 
 namespace PlanarGraph.Experiment
 {
     public partial class Form1 : Form
     {
+        private static readonly SettingsDialog SettingsDialog = new SettingsDialog();
+
         private readonly MatrixIO _dataGridViewManual = new MatrixIO
         {
             ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
@@ -46,6 +50,7 @@ namespace PlanarGraph.Experiment
                 WorkerComplite = MacLaneAlgorithmStopTimer,
                 WorkerLog = WorkerLog
             };
+            Settings.EnableCudafy = SettingsDialog.EnableCudafy;
         }
 
         private GammaAlgorithm GammaAlgorithm { get; set; }
@@ -71,6 +76,8 @@ namespace PlanarGraph.Experiment
             }
             else
             {
+                textBox1.AppendText(DateTime.Now.ToString(CultureInfo.InvariantCulture));
+                textBox1.AppendText("\t");
                 textBox1.AppendText(text);
                 textBox1.AppendText(Environment.NewLine);
             }
@@ -220,6 +227,12 @@ namespace PlanarGraph.Experiment
                 };
                 AddTask(task);
             }
+        }
+
+        private void settingsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SettingsDialog.ShowDialog();
+            Settings.EnableCudafy = SettingsDialog.EnableCudafy;
         }
 
         private delegate void AddExperimentDeligate(Experiment experiment);

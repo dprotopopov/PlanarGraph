@@ -106,7 +106,6 @@
     <Compile Include="Collections\SegmentCollection.cs" />
     <Compile Include="Collections\VertexUnsortedCollection.cs" />
     <Compile Include="Collections\VertexSortedCollection.cs" />
-    <Compile Include="Comparer\BooleanVectorComparer.cs" />
     <Compile Include="Comparer\CircleComparer.cs" />
     <Compile Include="Comparer\EdgeComparer.cs" />
     <Compile Include="Comparer\GraphComparer.cs" />

@@ -17,9 +17,9 @@ namespace PlanarGraph.Data
     {
         private static readonly VertexComparer VertexComparer = new VertexComparer();
 
-        public override StackListQueue<int> GetInts(Vertex values)
+        public override MyLibrary.Collections.StackListQueue<int> GetInts(Vertex values)
         {
-            return new StackListQueue<int> { values.Id };
+            return new MyLibrary.Collections.StackListQueue<int> { values.Id };
         }
         public Edge(IEnumerable<Vertex> list)
             : base(list)
